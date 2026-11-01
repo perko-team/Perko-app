@@ -381,18 +381,26 @@ function secret(name: string): string {
   return v;
 }
 
+/** The `role` claim of a JWT, without checking its signature. */
+function jwtRole(token: string): string | null {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(part.padEnd(part.length + ((4 - (part.length % 4)) % 4), '='))).role ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The caller of an owner action: a signed-in user, or the pilot admin script, which sends the service role key
  * itself (scripts/admin.ts pins:set, for businesses that have no owner yet).
+ * Only for functions deployed with verify_jwt on (business-admin): the gateway has then already verified the
+ * token's signature, so its role claim can be trusted. The key the function sees in SUPABASE_SERVICE_ROLE_KEY is
+ * not always the same string as the dashboard's legacy service_role key, so the claim is what identifies it.
  */
 async function requireCaller(req: Request, db: SupabaseClient): Promise<{ service: true } | { service: false; id: string } | null> {
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (token && serviceKey && token.length === serviceKey.length) {
-    let diff = 0;
-    for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ serviceKey.charCodeAt(i);
-    if (diff === 0) return { service: true };
-  }
+  if (token && jwtRole(token) === 'service_role') return { service: true };
   const user = await requireUser(req, db);
   return user ? { service: false, id: user.id } : null;
 }
