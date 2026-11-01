@@ -1,7 +1,7 @@
 'use client';
 // Session and the business being managed. Owners of several businesses switch between them in the header;
-// the choice is remembered on this computer.
-import { useRouter } from 'next/navigation';
+// the choice is remembered on this computer. A business that has not finished the first-run guide is sent there.
+import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { myBusinesses, type Business } from '../lib/api';
 import { configured, sb } from '../lib/supabase';
@@ -12,6 +12,8 @@ type Ctx = {
   choose: (id: string) => void;
   /** Re-read the businesses (after the PIN mode changed). */
   reload: () => Promise<void>;
+  /** Patch the current business locally after a save (the look, the first-run flag). */
+  patch: (b: Partial<Business>) => void;
   signOut: () => Promise<void>;
 };
 
@@ -34,6 +36,7 @@ function remembered(): string | null {
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const path = usePathname();
   const [state, setState] = useState<{ status: 'loading' | 'none' | 'error' | 'ready'; businesses: Business[]; id: string | null; error?: string }>({
     status: 'loading', businesses: [], id: null,
   });
@@ -62,17 +65,23 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, [load, router]);
 
+  const current = state.businesses.find((b) => b.id === state.id);
+  const needsGuide = state.status === 'ready' && current && !current.onboardedAt && path !== '/onboarding';
+  useEffect(() => {
+    if (needsGuide) router.replace('/onboarding');
+  }, [needsGuide, router]);
+
   const signOut = async () => {
     await sb().auth.signOut();
     router.replace('/login');
   };
 
-  if (state.status === 'loading') return <main className="center"><p className="muted">טוענים…</p></main>;
-  if (state.status === 'error') return <main className="center"><div className="card login"><h2>משהו השתבש</h2><p>{state.error}</p><button className="btn" onClick={load}>לנסות שוב</button></div></main>;
+  if (state.status === 'loading' || needsGuide) return <main className="center"><p className="muted">טוענים…</p></main>;
+  if (state.status === 'error') return <main className="center"><div className="panel narrow"><h2>משהו השתבש</h2><p>{state.error}</p><button className="btn" onClick={load}>לנסות שוב</button></div></main>;
   if (state.status === 'none') {
     return (
       <main className="center">
-        <div className="card login">
+        <div className="panel narrow">
           <h2>אין עסק בחשבון הזה</h2>
           <p className="muted">הכתובת שנכנסת איתה לא רשומה כבעלים של עסק ב-Perko. אם זו טעות, כתבו לנו ל-hello@getperko.com.</p>
           <button className="btn quiet" onClick={signOut}>יציאה</button>
@@ -90,8 +99,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
     setState((s) => ({ ...s, id }));
   };
+  const patch = (b: Partial<Business>) =>
+    setState((s) => ({ ...s, businesses: s.businesses.map((x) => (x.id === s.id ? { ...x, ...b } : x)) }));
   return (
-    <DashboardContext.Provider value={{ businesses: state.businesses, business, choose, reload: load, signOut }}>
+    <DashboardContext.Provider value={{ businesses: state.businesses, business, choose, reload: load, patch, signOut }}>
       {children}
     </DashboardContext.Provider>
   );

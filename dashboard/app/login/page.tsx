@@ -40,7 +40,7 @@ export default function Login() {
 
   return (
     <main className="center">
-      <div className="login" style={{ display: 'grid', gap: 18 }}>
+      <div className="narrow">
         <div className="hero">
           <span className="wordmark">perk<i /></span>
           <h1>Perko לעסקים</h1>
@@ -49,7 +49,7 @@ export default function Login() {
         {!configured ? (
           <p className="note warn">חסרים משתני הסביבה NEXT_PUBLIC_SUPABASE_URL ו-NEXT_PUBLIC_SUPABASE_ANON_KEY.</p>
         ) : sent ? (
-          <form className="card" onSubmit={verify}>
+          <form className="panel" onSubmit={verify}>
             <h2>הקוד נשלח</h2>
             <p className="muted">אם {sent} רשומה כבעלים של עסק, נשלח אליה קוד חד-פעמי.</p>
             <label className="field">
@@ -66,7 +66,7 @@ export default function Login() {
             </div>
           </form>
         ) : (
-          <form className="card" onSubmit={send}>
+          <form className="panel" onSubmit={send}>
             <h2>כניסה</h2>
             <label className="field">
               אימייל
