@@ -132,6 +132,17 @@ async function businessAdmin(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
   const out = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    // Which kind of key was sent (its role claim, never the key itself), to tell a wrong key from a server problem.
+    let role = 'not a JWT';
+    try {
+      role = JSON.parse(Buffer.from(key!.split('.')[1], 'base64url').toString()).role ?? 'none';
+    } catch {
+      // keep 'not a JWT'
+    }
+    fail(`business-admin: 401 ${JSON.stringify(out)}. The key in SUPABASE_SERVICE_ROLE_KEY has role "${role}": it must be the\n` +
+      'service_role key from Supabase > Project Settings > API Keys > Legacy API keys (it starts with eyJ).');
+  }
   if (!res.ok || out.status === 'invalid' || out.status === 'forbidden') fail(`business-admin: ${res.status} ${JSON.stringify(out)}`);
   return out;
 }
