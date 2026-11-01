@@ -16,10 +16,13 @@
   ],
   "exclude": [
     "node_modules",
+    "dashboard",
     "supabase/functions/collect",
     "supabase/functions/redeem",
     "supabase/functions/delete-account",
+    "supabase/functions/business-admin",
     "supabase/functions/_shared/server.ts",
+    "supabase/functions/_shared/pins.ts",
     "supabase/dashboard"
   ]
 }
