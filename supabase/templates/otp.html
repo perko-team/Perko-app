@@ -1,3 +1,80 @@
+{{/*
+  Perko sign-in code email: one template for the Supabase "Magic Link" and "Confirm signup" emails.
+  Business owners get the dashboard's dark design, customers the app's lime one. The dashboard asks for its
+  code with emailRedirectTo = https://business.getperko.com/ (dashboard/lib/supabase.ts BUSINESS_EMAIL_MARK);
+  that URL must be listed under Authentication > URL Configuration > Redirect URLs, otherwise Supabase replaces
+  it with the Site URL and the owner gets the customer design (still a working code).
+*/}}
+{{ if eq .RedirectTo "https://business.getperko.com/" }}
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <title>הקוד שלך ל-Perko לעסקים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    /* Perko for business: the owner dashboard's look. Ink #11130F, panel #1A1D16, raised #23271E,
+       off-white #F8F8F4, muted #B9BCB0, lime #D7FF35 only for the code and the wordmark's dot.
+       Tables and inline styles for mail clients; it holds on system fonts where web fonts do not load. */
+    body { margin: 0; padding: 0; background: #11130F; }
+    @media (max-width: 520px) {
+      .px { padding-left: 24px !important; padding-right: 24px !important; }
+      .code { font-size: 34px !important; letter-spacing: 8px !important; }
+      .title { font-size: 26px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background:#11130F;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">הקוד החד-פעמי שלך לכניסה לניהול העסק ב-Perko</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#11130F;" bgcolor="#11130F">
+    <tr>
+      <td align="center" style="padding:36px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl"
+               style="max-width:480px; border-collapse:separate; font-family:'Heebo', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Noto Sans Hebrew', Arial, sans-serif; color:#F8F8F4;">
+
+          <!-- Wordmark and "for business", as in the dashboard's menu -->
+          <tr>
+            <td class="px" style="padding:0 36px 22px;" dir="ltr" align="left">
+              <span style="font-family:'Heebo', 'Arial Black', 'Segoe UI Black', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif; font-size:28px; font-weight:900; letter-spacing:-1.4px; color:#F8F8F4; line-height:1;">perk</span><span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#D7FF35; margin-left:1px; vertical-align:baseline;"></span>
+              <span style="font-size:13px; color:#B9BCB0; padding-left:8px;">לעסקים</span>
+            </td>
+          </tr>
+
+          <!-- Panel -->
+          <tr>
+            <td class="px" style="background:#1A1D16; border:1px solid #2A2E24; border-radius:28px; padding:36px 36px 32px;" bgcolor="#1A1D16" align="right">
+              <h1 class="title" style="margin:0 0 10px; font-size:30px; line-height:1.1; font-weight:800; letter-spacing:-1px; color:#F8F8F4;">הקוד שלך לכניסה</h1>
+              <p style="margin:0 0 26px; font-size:16px; line-height:1.55; color:#B9BCB0;">מקלידים את הקוד באתר Perko לעסקים כדי להיכנס לניהול העסק: הסקירה, הכרטיס, הצוות והיומן.</p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td align="center" dir="ltr" style="background:#23271E; border:1px solid #2A2E24; border-radius:20px; padding:24px 16px;" bgcolor="#23271E">
+                    <span class="code" style="font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:42px; font-weight:700; letter-spacing:12px; color:#D7FF35; line-height:1;">{{ .Token }}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:24px 0 6px; font-size:14px; line-height:1.55; color:#B9BCB0;">הקוד חד-פעמי ותקף לזמן מוגבל. לא משתפים אותו, גם לא עם הצוות: לצוות יש קוד משלו לקופה.</p>
+              <p style="margin:0; font-size:14px; line-height:1.55; color:#B9BCB0;">לא ביקשת להיכנס? אפשר להתעלם מהמייל, ושום דבר לא ישתנה.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:22px 36px 0;" align="center">
+              <p style="margin:0; font-size:12px; line-height:1.5; color:#9EA294;">Perko לעסקים · נשלח לכתובת שרשומה כבעלים של העסק</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+{{ else }}
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -77,3 +154,4 @@
   </table>
 </body>
 </html>
+{{ end }}

@@ -61,30 +61,30 @@ export default function LogPage() {
           <span className="muted">כל חותמת וכל מימוש, מי אישר ומתי. השעות לפי שעון ישראל.</span>
         </div>
         <button type="button" className="btn quiet" onClick={() => exportCsv(rows, business.slug)} disabled={!rows.length}>
-          <DownloadIcon size={18} />ייצוא ל-Excel
+          <DownloadIcon size={18} /><span className="wide-inline">ייצוא ל-</span>Excel
         </button>
       </div>
 
-      <div className="row">
+      <div className="filters">
         <div className="seg" role="group" aria-label="סוג פעולה">
           {([['all', 'הכל'], ['stamp', 'חותמות'], ['redeem', 'מימושים']] as const).map(([k, label]) => (
             <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>{label}</button>
           ))}
         </div>
-        <label className="row" style={{ gap: 8 }}>
+        <label>
           <span className="muted small">אישר/ה</span>
-          <select value={staff} onChange={(e) => setStaff(e.target.value)} style={{ width: 'auto', minHeight: 40, padding: '6px 12px' }}>
+          <select value={staff} onChange={(e) => setStaff(e.target.value)}>
             <option value="">כל הצוות</option>
             {staffNames.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
-        <label className="row" style={{ gap: 8 }}>
+        <label>
           <span className="muted small">תקופה</span>
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ width: 'auto', minHeight: 40, padding: '6px 12px' }}>
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {PERIODS.map((d) => <option key={d} value={d}>{d} ימים</option>)}
           </select>
         </label>
-        {data ? <span className="muted small" style={{ marginInlineStart: 'auto' }}>{rows.length} פעולות · {redeemed} מימושים{data.length >= 500 ? ' · 500 האחרונות' : ''}</span> : null}
+        {data ? <span className="muted small count" style={{ marginInlineStart: 'auto' }}>{rows.length} פעולות · {redeemed} מימושים{data.length >= 500 ? ' · 500 האחרונות' : ''}</span> : null}
       </div>
 
       {!data ? <Loading error={loading ? undefined : error} onRetry={reload} /> : null}

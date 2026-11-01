@@ -1146,3 +1146,87 @@ input[type='checkbox'] {
     padding-bottom: 84px;
   }
 }
+
+/* Phone fixes (seen on iPhone Safari) ------------------------------------------------------------- */
+/* A choice inside a panel spans the panel, in equal parts (the team page's PIN mode). */
+.panel > .seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.panel > .seg button {
+  min-height: 44px;
+  padding: 8px 10px;
+}
+/* One chevron of our own instead of each browser's arrows. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23B9BCB0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 12px center;
+  padding-left: 36px;
+}
+.biz select {
+  background-image: none;
+  padding-left: 0;
+}
+/* The log's filters. */
+.filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.filters select {
+  width: auto;
+  min-height: 40px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+@media (max-width: 860px) {
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .filters .seg {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .filters label {
+    display: grid;
+    gap: 4px;
+  }
+  .filters select {
+    width: 100%;
+    min-height: 44px;
+  }
+  .filters .count {
+    grid-column: 1 / -1;
+    margin: 0 !important;
+  }
+  /* A page's one secondary action sits beside the title instead of taking a row of its own. */
+  .page-head {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+  .page-head > .btn.quiet {
+    flex: none;
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+    margin-top: 6px;
+  }
+}
+@media (max-width: 860px) {
+  .wide-inline {
+    display: none;
+  }
+}

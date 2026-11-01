@@ -7,6 +7,13 @@ export const SUPABASE_URL = url;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 export const configured = Boolean(url && key);
 
+/**
+ * Sent as emailRedirectTo with the sign-in code request. The code email template (supabase/templates/otp.html)
+ * compares .RedirectTo with it to send owners the dashboard's design. It must be listed under Authentication >
+ * URL Configuration > Redirect URLs; no link in the email uses it (sign-in is by code).
+ */
+export const BUSINESS_EMAIL_MARK = 'https://business.getperko.com/';
+
 let client: SupabaseClient | null = null;
 
 /** Created on first use in the browser, so the build does not need the env variables. */

@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { normalizeEmail } from '../../../supabase/functions/_shared/loyalty.ts';
-import { configured, sb } from '../../lib/supabase';
+import { BUSINESS_EMAIL_MARK, configured, sb } from '../../lib/supabase';
 
 export default function Login() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function Login() {
     if (!normalized) return setError('זו לא כתובת מייל תקינה.');
     setBusy(true);
     setError(null);
-    const { error } = await sb().auth.signInWithOtp({ email: normalized, options: { shouldCreateUser: false } });
+    const { error } = await sb().auth.signInWithOtp({ email: normalized, options: { shouldCreateUser: false, emailRedirectTo: BUSINESS_EMAIL_MARK } });
     setBusy(false);
     // An unknown address gets the same answer, so the page does not reveal who is an owner.
     if (error && !/signups not allowed|not found|otp_disabled/i.test(error.message)) return setError('לא הצלחנו לשלוח קוד. נסו שוב בעוד רגע.');
