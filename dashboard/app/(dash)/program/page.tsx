@@ -70,7 +70,7 @@ export default function ProgramPage() {
         <p>אחרי {form.goal} {unit}{form.type === 'points' ? `, ${form.step} על כל רכישה מזכה` : ''}.</p>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h3>צבירה</h3>
         <label className="field">
           שם הכרטיס
@@ -83,7 +83,7 @@ export default function ProgramPage() {
             <button type="button" aria-pressed={form.type === 'points'} onClick={() => set('type', 'points')}>נקודות</button>
           </div>
         </div>
-        <div className="grid2">
+        <div className="split">
           <label className="field">
             {form.type === 'points' ? 'נקודות להטבה' : 'חותמות להטבה'}
             <input type="number" inputMode="numeric" min={1} max={100000} value={form.goal} onChange={(e) => set('goal', Number(e.target.value))} required />
@@ -109,7 +109,7 @@ export default function ProgramPage() {
         </label>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h3>הטבה</h3>
         <label className="field">
           ההטבה

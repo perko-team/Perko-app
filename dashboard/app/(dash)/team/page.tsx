@@ -65,7 +65,7 @@ export default function TeamPage() {
         </div>
       ) : null}
 
-      <div className="card">
+      <div className="panel">
         <h3>איך הצוות מאשר</h3>
         <div className="seg" role="group" aria-label="מצב הקודים">
           <button aria-pressed={business.pinMode === 'shared'} onClick={() => setMode('shared')} disabled={busy}>קוד אחד לכל הצוות</button>
@@ -82,7 +82,7 @@ export default function TeamPage() {
       {loading && !staff ? <Loading onRetry={reload} /> : error ? <Loading error={error} onRetry={reload} /> : null}
 
       {staff && business.pinMode === 'shared' ? (
-        <div className="card">
+        <div className="panel">
           <h3>קוד הצוות</h3>
           {staff.length ? (
             <p>פעיל מאז {fmtDate(staff[0].createdAt)}.</p>
@@ -113,7 +113,7 @@ export default function TeamPage() {
               </li>
             ))}
           </ul>
-          <form className="card" onSubmit={add}>
+          <form className="panel" onSubmit={add}>
             <h3>הוספת עובד/ת</h3>
             <label className="field">
               שם

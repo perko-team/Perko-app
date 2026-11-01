@@ -193,18 +193,24 @@ phone.
 
 ## Business dashboard
 
-`dashboard/` is a Next.js app (Hebrew, RTL, the app's colours from `src/tokens.ts`, Heebo) where a business owner
-signs in with a one-time email code and manages their business:
+`dashboard/` is a Next.js app (Hebrew, RTL, dark, the app's colours from `src/tokens.ts`, Heebo) where a business
+owner signs in with a one-time email code and manages their business. A side menu on wide screens, a tab bar on
+phones. A new owner first goes through a three-step guide (program, team PIN, counter code; `businesses.onboarded_at`).
 
-1. **תוכנית:** goal, reward, collection rule, redemption rule and cooldown, edited in place under RLS. Changes reach
+1. **סקירה:** visits, active and returning customers and rewards for 7, 30 or 90 days against the period before,
+   visits per day, a weekday-by-hour heat map, and the card with open, near-reward and ready cards
+   (`business_overview`, `business_daily_visits`, `business_heatmap`).
+2. **הכרטיס:** the card's look with a live preview drawn like the app's wallet card (`src/cardLook.ts`, shared):
+   a brand face or the owner's photo under a dark layer (30-85%), a logo instead of the initial, the stamp shape
+   (circle, cup, heart, star). Images go to the public `business-media` bucket, in the business's own folder
+   (owners write only there; JPG/PNG/WEBP up to 5 MB). Saving updates every customer's card at once.
+3. **תוכנית:** goal, reward, collection rule, redemption rule and cooldown, edited in place under RLS. Changes reach
    new cards only (the cooldown applies at once); the screen says so.
-2. **צוות:** PIN mode, add and remove staff, create and reset PINs (shown once).
-3. **יומן:** stamps and redemptions with date, time (Israel), staff name or "צוות", and the customer by name, the
-   last 4 digits of their phone or a masked email.
-4. **תובנות:** active customers, returning customers (visits on 2+ days), rewards redeemed, visits and visits per
-   customer, for the last 7 and 30 days.
-5. **התראות:** PIN lockouts and bursts of wrong PINs.
-6. **קוד לקופה:** the counter card as PNG and A6 PDF (the same card as `qr:print`, drawn by
+4. **צוות:** PIN mode, add and remove staff, create and reset PINs (shown once).
+5. **יומן:** stamps and redemptions grouped by day, with time (Israel), staff name or "צוות", and the customer by
+   name, the last 4 digits of their phone or a masked email; filters by kind, staff and period; CSV export.
+6. **התראות:** PIN lockouts and bursts of wrong PINs.
+7. **קוד לקופה:** the counter card as PNG and A6 PDF (the same card as `qr:print`, drawn by
    `dashboard/lib/counterCard.ts`), and extra codes.
 
 Access: `business_members` (user, business, role `owner` | `staff`; staff is reserved and has no dashboard access

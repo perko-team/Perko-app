@@ -1,11 +1,24 @@
 // Everything the dashboard reads and writes. Reads go through RLS and the owner RPCs
 // (supabase/migrations/20261031100200_business_members.sql); PINs and counter codes through business-admin.
 import type { BusinessAdminRequest, BusinessAdminResponse, PinMode } from '../../supabase/functions/_shared/api-types.ts';
-import { sb } from './supabase';
+import { MEDIA_BUCKET, mediaUrl, type CardStyle, type StampShape } from '../../src/cardLook.ts';
+import { sb, SUPABASE_URL } from './supabase';
 
 export type { PinMode };
 
-export type Business = { id: string; name: string; slug: string; pinMode: PinMode; active: boolean };
+/** The card's look as stored: paths in the business-media bucket, not URLs. */
+export type LookSettings = { style: CardStyle; imagePath: string | null; logoPath: string | null; overlay: number; stampShape: StampShape };
+
+export type Business = {
+  id: string;
+  name: string;
+  slug: string;
+  initial: string;
+  pinMode: PinMode;
+  active: boolean;
+  onboardedAt: string | null;
+  look: LookSettings;
+};
 
 export type Program = {
   id: string;
@@ -34,11 +47,84 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
 
 /** The businesses the signed-in user owns. */
 export async function myBusinesses(): Promise<Business[]> {
-  const rows = check(await sb().from('business_members').select('role, business:businesses(id, name, slug, pin_mode, active)').eq('role', 'owner'));
-  return (rows as unknown as { business: { id: string; name: string; slug: string; pin_mode: PinMode; active: boolean } | null }[])
+  const rows = check(await sb().from('business_members')
+    .select('role, business:businesses(id, name, slug, initial, pin_mode, active, onboarded_at, card_style, card_image_path, logo_path, card_overlay, stamp_shape)')
+    .eq('role', 'owner'));
+  return (rows as unknown as { business: Record<string, any> | null }[])
     .filter((r) => r.business)
-    .map((r) => ({ id: r.business!.id, name: r.business!.name, slug: r.business!.slug, pinMode: r.business!.pin_mode, active: r.business!.active }))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PostgREST rows are untyped here
+    .map(({ business: b }): Business => ({
+      id: b!.id, name: b!.name, slug: b!.slug, initial: b!.initial, pinMode: b!.pin_mode, active: b!.active, onboardedAt: b!.onboarded_at,
+      look: { style: b!.card_style, imagePath: b!.card_image_path, logoPath: b!.logo_path, overlay: b!.card_overlay, stampShape: b!.stamp_shape },
+    }))
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** Public URL of a business-media file. */
+export const media = (path: string | null) => mediaUrl(SUPABASE_URL, path);
+
+/** Saves the card's look. The row's constraints keep each path inside the business's own folder. */
+export async function saveLook(businessId: string, look: LookSettings): Promise<void> {
+  check(await sb().from('businesses').update({
+    card_style: look.style, card_image_path: look.imagePath, logo_path: look.logoPath,
+    card_overlay: look.overlay, stamp_shape: look.stampShape,
+  }).eq('id', businessId));
+}
+
+const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Checks a picked file before uploading: an image the bucket accepts. Returns an error message or null. */
+export function imageProblem(file: File): string | null {
+  if (!IMAGE_TYPES[file.type]) return 'אפשר להעלות JPG, PNG או WEBP.';
+  if (file.size > MAX_IMAGE_BYTES) return 'הקובץ גדול מ-5MB.';
+  return null;
+}
+
+/** Uploads an image to the business's folder under a new name (no cache to bust) and returns its path. */
+export async function uploadImage(businessId: string, kind: 'bg' | 'logo', file: File): Promise<string> {
+  const path = `${businessId}/${kind}-${Date.now().toString(36)}.${IMAGE_TYPES[file.type]}`;
+  const { error } = await sb().storage.from(MEDIA_BUCKET).upload(path, file, { contentType: file.type, upsert: false, cacheControl: '31536000' });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+/** Removes images that are no longer used (after a save replaced them). Failures are harmless. */
+export async function removeImages(paths: (string | null)[]): Promise<void> {
+  const list = paths.filter((p): p is string => !!p);
+  if (list.length) await sb().storage.from(MEDIA_BUCKET).remove(list).catch(() => undefined);
+}
+
+export async function markOnboarded(businessId: string): Promise<void> {
+  check(await sb().from('businesses').update({ onboarded_at: new Date().toISOString() }).eq('id', businessId));
+}
+
+export type Overview = {
+  visits: number; prevVisits: number;
+  active: number; prevActive: number;
+  returning: number; prevReturning: number;
+  redeemed: number; prevRedeemed: number;
+  openCards: number; nearReward: number; readyCards: number;
+};
+
+export async function getOverview(businessId: string, days: number): Promise<Overview> {
+  const rows = check(await sb().rpc('business_overview', { p_business: businessId, p_days: days })) as Record<string, number>[];
+  const r = rows[0] ?? {};
+  return {
+    visits: r.visits ?? 0, prevVisits: r.prev_visits ?? 0,
+    active: r.active_customers ?? 0, prevActive: r.prev_active_customers ?? 0,
+    returning: r.returning_customers ?? 0, prevReturning: r.prev_returning_customers ?? 0,
+    redeemed: r.rewards_redeemed ?? 0, prevRedeemed: r.prev_rewards_redeemed ?? 0,
+    openCards: r.open_cards ?? 0, nearReward: r.near_reward ?? 0, readyCards: r.ready_cards ?? 0,
+  };
+}
+
+export async function getDailyVisits(businessId: string, days: number): Promise<{ day: string; visits: number }[]> {
+  return check(await sb().rpc('business_daily_visits', { p_business: businessId, p_days: days })) as { day: string; visits: number }[];
+}
+
+export async function getHeatmap(businessId: string, days: number): Promise<{ dow: number; hour: number; visits: number }[]> {
+  return check(await sb().rpc('business_heatmap', { p_business: businessId, p_days: days })) as { dow: number; hour: number; visits: number }[];
 }
 
 export async function getProgram(businessId: string): Promise<Program | null> {

@@ -1,6 +1,8 @@
 // Stamp grid for stamp programs, progress meter for points programs (website: src/components/ui/Stamps.astro).
 import { useEffect, useState } from 'react';
 import { Animated, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { STAMP_GLYPHS, stampColors, type StampShape, type StampSurface } from '../cardLook';
 import { useTheme } from '../lib/appearance';
 import { useReduceMotion } from '../lib/hooks';
 import type { ProgramType } from '../lib/types';
@@ -14,8 +16,8 @@ export function columnsFor(goal: number): number {
   return 5;
 }
 
-/** The surface the stamps sit on. "dark" is for ink and muted wallet cards: filled stamps are lime. */
-export type StampSurface = 'light' | 'lime' | 'dark';
+/** The surface the stamps sit on (see cardLook). "dark" is for ink and muted wallet cards: filled stamps are lime. */
+export type { StampSurface };
 
 type StampsProps = {
   goal: number;
@@ -29,9 +31,11 @@ type StampsProps = {
   /** Index of a stamp that just landed: it drops in with a short expo-out scale. */
   landIndex?: number;
   size?: 'normal' | 'large';
+  /** The business's stamp shape: a plain disc, or a glyph (cup, heart, star) drawn on it. */
+  shape?: StampShape;
 };
 
-export function Stamps({ goal, current, onLime, surface, columns, gap: gapProp, landIndex, size = 'normal' }: StampsProps) {
+export function Stamps({ goal, current, onLime, surface, columns, gap: gapProp, landIndex, size = 'normal', shape = 'circle' }: StampsProps) {
   const cols = columns ?? columnsFor(goal);
   const gap = gapProp ?? (size === 'large' ? 12 : 9);
   const { t } = useTheme();
@@ -47,16 +51,16 @@ export function Stamps({ goal, current, onLime, surface, columns, gap: gapProp, 
     >
       {Array.from({ length: goal }, (_, i) => (
         <View key={i} style={{ width: `${100 / cols}%`, paddingHorizontal: gap / 2 }}>
-          <Stamp on={i < current} reward={i === goal - 1} surface={on} land={i === landIndex} />
+          <Stamp on={i < current} reward={i === goal - 1} surface={on} land={i === landIndex} shape={shape} />
         </View>
       ))}
     </View>
   );
 }
 
-function Stamp({ on, reward, surface, land }: { on: boolean; reward: boolean; surface: StampSurface; land?: boolean }) {
+function Stamp({ on, reward, surface, land, shape }: { on: boolean; reward: boolean; surface: StampSurface; land?: boolean; shape: StampShape }) {
   const onLime = surface === 'lime';
-  const dark = surface === 'dark';
+  const dark = surface === 'dark' || surface === 'photo';
   const reduce = useReduceMotion();
   const v = useState(() => new Animated.Value(land ? 0 : 1))[0];
 
@@ -70,10 +74,9 @@ function Stamp({ on, reward, surface, land }: { on: boolean; reward: boolean; su
     Animated.timing(v, { toValue: 1, duration: motion.stamp, delay: 180, easing: motion.expoOut, useNativeDriver: true }).start();
   }, [land, reduce, v]);
 
-  const empty = dark ? colors.paperOnInk16 : onLime ? colors.inkOnLime14 : colors.pale;
-  const ring = dark ? colors.paperOnInk60 : onLime ? colors.inkOnLime70 : colors.paleStrong;
-  const filled = dark ? colors.lime : colors.ink;
+  const { empty, ring, filled, onFilled, onEmpty } = stampColors(surface);
   const showRing = reward && !on;
+  const glyph = shape === 'circle' || reward ? null : STAMP_GLYPHS[shape];
 
   // "Land": the stamp comes down from 1.6x and settles, like a rubber stamp hitting the card.
   const scale = v.interpolate({ inputRange: [0, 1], outputRange: [1.6, 1] });
@@ -87,15 +90,31 @@ function Stamp({ on, reward, surface, land }: { on: boolean; reward: boolean; su
         <Animated.View
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 999, backgroundColor: filled,
-            opacity: v, transform: [{ scale }],
+            alignItems: 'center', justifyContent: 'center', opacity: v, transform: [{ scale }],
           }}
-        />
+        >
+          {/* The glyph rides inside the filled disc, so it lands with it and is never painted under it. */}
+          {glyph ? <Glyph d={glyph} color={onFilled} /> : null}
+        </Animated.View>
+      ) : glyph ? (
+        <Glyph d={glyph} color={onEmpty} />
       ) : null}
       {reward ? (
         <View style={{ width: '55%', height: '55%' }}>
-          <CheckIcon size="100%" color={dark ? (on ? colors.ink : colors.paper) : on ? colors.lime : onLime ? colors.ink : colors.muted} />
+          <CheckIcon size="100%" color={dark ? (on ? onFilled : colors.paper) : on ? colors.lime : onLime ? colors.ink : colors.muted} />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** A stamp-shape glyph (cup, heart, star) at 58% of the stamp. */
+function Glyph({ d, color }: { d: string; color: string }) {
+  return (
+    <View style={{ width: '58%', height: '58%' }}>
+      <Svg width="100%" height="100%" viewBox="0 0 24 24">
+        <Path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
     </View>
   );
 }
