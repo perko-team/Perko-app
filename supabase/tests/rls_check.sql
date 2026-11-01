@@ -171,4 +171,60 @@ do $$ begin
   assert customer_label('22222222-2222-4222-8222-222222222222') = 'd•••@example.com';
   raise notice 'ok   customers are shown by name, last 4 phone digits or a masked email';
 end $$;
+-- Card look and overview (migration 20261102100000) ------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$update businesses set name = 'x' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'owner cannot rename the business');
+select pg_temp.expect_error($q$update businesses set card_style = 'photo' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'photo style needs an image');
+select pg_temp.expect_error($q$update businesses set logo_path = 'a0000000-0000-4000-8000-000000000002/logo.png' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'logo must be in the business''s own folder');
+select pg_temp.expect_error($q$update businesses set card_overlay = 10 where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'overlay below 30 is refused');
+do $$
+declare r record;
+begin
+  update businesses set card_style = 'photo', card_image_path = 'a0000000-0000-4000-8000-000000000001/bg-1.jpg',
+    logo_path = 'a0000000-0000-4000-8000-000000000001/logo.png', stamp_shape = 'cup', card_overlay = 60, onboarded_at = now()
+  where id = 'a0000000-0000-4000-8000-000000000001';
+  update businesses set stamp_shape = 'star' where id = 'a0000000-0000-4000-8000-000000000002';
+  assert (select stamp_shape from businesses where id = 'a0000000-0000-4000-8000-000000000001') = 'cup', 'owner sets the look';
+  assert (select stamp_shape from businesses where id = 'a0000000-0000-4000-8000-000000000002') = 'circle', 'not another business';
+  assert owns_media_path('a0000000-0000-4000-8000-000000000001/bg-1.jpg');
+  assert not owns_media_path('a0000000-0000-4000-8000-000000000002/bg-1.jpg');
+  assert not owns_media_path('../a0000000-0000-4000-8000-000000000001/x.jpg');
+  assert not owns_media_path('not-a-uuid/x.jpg'), 'bad folder is false, not an error';
+  assert (select count(*) from business_daily_visits('a0000000-0000-4000-8000-000000000001', 7)) = 7, 'one row per day';
+  assert (select sum(visits) from business_daily_visits('a0000000-0000-4000-8000-000000000001', 7)) = 2;
+  assert (select sum(visits) from business_heatmap('a0000000-0000-4000-8000-000000000001', 30)) = 2;
+  select * into r from business_overview('a0000000-0000-4000-8000-000000000001', 7);
+  assert r.visits = 2 and r.prev_visits = 0 and r.active_customers = 1 and r.rewards_redeemed = 1 and r.open_cards = 1, format('overview %s', r);
+  raise notice 'ok   owner edits the card look within its own folder; daily visits, heatmap and overview work';
+end $$;
+reset role;
+
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+select pg_temp.expect_error($q$select * from business_overview('a0000000-0000-4000-8000-000000000001', 7)$q$, 'customer cannot read the overview');
+do $$ begin
+  assert not owns_media_path('a0000000-0000-4000-8000-000000000001/bg-1.jpg'), 'customer owns no media';
+  update businesses set stamp_shape = 'heart';
+  assert (select stamp_shape from businesses where id = 'a0000000-0000-4000-8000-000000000001') = 'cup', 'customer update changes nothing';
+  assert (select logo_path from businesses where id = 'a0000000-0000-4000-8000-000000000001') is not null, 'customers read the look';
+  raise notice 'ok   customers read the card look but cannot change it';
+end $$;
+reset role;
+-- Storage: owners write only inside their business's folder.
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+insert into storage.objects (bucket_id, name) values ('business-media', 'a0000000-0000-4000-8000-000000000001/bg-2.jpg');
+select pg_temp.expect_error($q$insert into storage.objects (bucket_id, name) values ('business-media', 'a0000000-0000-4000-8000-000000000002/bg.jpg')$q$, 'owner cannot upload to another business''s folder');
+select pg_temp.expect_error($q$insert into storage.objects (bucket_id, name) values ('business-media', 'a0000000-0000-4000-8000-000000000001/run.exe')$q$, 'only images');
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+select pg_temp.expect_error($q$insert into storage.objects (bucket_id, name) values ('business-media', 'a0000000-0000-4000-8000-000000000001/x.jpg')$q$, 'customer cannot upload');
+do $$ begin
+  assert (select count(*) from storage.objects) = 0, 'customer does not list owners'' files';
+  assert (select public from storage.buckets where id = 'business-media'), 'bucket is public for reading';
+  raise notice 'ok   business-media: owners write their own folder only';
+end $$;
+reset role;
 \echo ALL DB CHECKS PASSED

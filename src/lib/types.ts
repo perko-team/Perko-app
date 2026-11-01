@@ -1,4 +1,5 @@
 import type { CardStatus, ProgramType } from '../../supabase/functions/_shared/loyalty.ts';
+import type { CardLook } from '../cardLook';
 
 export type { CardStatus, ProgramType };
 export type {
@@ -38,6 +39,8 @@ export type Business = {
   /** Map position; null when the business has no location yet. */
   lat: number | null;
   lng: number | null;
+  /** The card's look, set by the owner in the dashboard: background, logo, stamp shape. */
+  look: CardLook;
   program: Program | null;
 };
 

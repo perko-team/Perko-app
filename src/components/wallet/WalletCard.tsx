@@ -1,13 +1,15 @@
-// A loyalty card drawn as a physical card: credit-card proportions, real depth, one colour per business.
+// A loyalty card drawn as a physical card: credit-card proportions, real depth, and the look its business
+// chose in the dashboard (src/cardLook.ts: a brand face or a photo, a logo, a stamp shape).
 // Purely visual: the wallet stack adds position, gestures and accessibility around it.
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
+import { cardFace } from '../../cardLook';
 import { remaining, remainingLabel } from '../../../supabase/functions/_shared/loyalty.ts';
 import { useTheme } from '../../lib/appearance';
 import type { Card } from '../../lib/types';
 import { colors } from '../../theme';
 import { Wordmark } from '../Brand';
 import { CheckIcon } from '../Icons';
-import { Meter, Stamps, type StampSurface } from '../Stamps';
+import { Meter, Stamps } from '../Stamps';
 import { Txt } from '../Txt';
 
 /** ISO/IEC 7810 ID-1 (a bank card): 85.60 x 53.98 mm. */
@@ -15,41 +17,6 @@ export const CARD_RATIO = 1.586;
 export const CARD_RADIUS = 20;
 /** The part of a card that shows while the cards are stacked. */
 export const STRIP = 70;
-
-type Face = {
-  bg: string;
-  fg: string;
-  sub: string;
-  /** The large cropped disc, an echo of the logo's dot. */
-  disc: string;
-  /** 1 px highlight along the top edge, like light catching the edge of a plastic card. */
-  edge: string;
-  stamps: StampSurface;
-  avatarBg: string;
-  avatarFg: string;
-  /** "ready" pill and ring. */
-  accentBg: string;
-  accentFg: string;
-};
-
-const light = { fg: colors.ink, sub: colors.muted, stamps: 'lime' as const, avatarBg: colors.ink, avatarFg: colors.lime, accentBg: colors.ink, accentFg: colors.lime };
-const dark = { fg: colors.paper, sub: colors.slateOnInk, stamps: 'dark' as const, avatarBg: colors.lime, avatarFg: colors.ink, accentBg: colors.lime, accentFg: colors.ink };
-
-/** Card faces, only from the brand palette. */
-const faces: Face[] = [
-  { ...light, bg: colors.lime, disc: colors.lime2, edge: 'rgba(255, 255, 255, 0.55)' },
-  { ...dark, bg: colors.ink, disc: colors.inkRaised, edge: 'rgba(248, 248, 244, 0.14)' },
-  { ...light, bg: colors.paper, disc: colors.pale, edge: 'rgba(255, 255, 255, 0.9)', stamps: 'light' },
-  { ...light, bg: colors.lime2, disc: colors.lime, edge: 'rgba(255, 255, 255, 0.45)' },
-  { ...dark, bg: colors.muted, disc: 'rgba(17, 19, 15, 0.22)', edge: 'rgba(248, 248, 244, 0.16)' },
-];
-
-/** A stable colour per business: the same business always gets the same card. */
-export function faceFor(businessId: string): Face {
-  let h = 0;
-  for (let i = 0; i < businessId.length; i++) h = (h * 31 + businessId.charCodeAt(i)) >>> 0;
-  return faces[h % faces.length];
-}
 
 export function cardHeight(width: number): number {
   return Math.round(width / CARD_RATIO);
@@ -61,7 +28,9 @@ function stampColumns(goal: number): number {
 }
 
 export function WalletCardFace({ card, width }: { card: Card; width: number }) {
-  const face = faceFor(card.business.id);
+  const look = card.business.look;
+  const face = cardFace(look, card.business.id);
+  const photo = face.stamps === 'photo' ? look.imageUrl : null;
   const height = cardHeight(width);
   const ready = card.status === 'complete';
   const points = card.program.type === 'points' || card.program.goal > 20;
@@ -88,6 +57,13 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
       }}
     >
       <View style={{ flex: 1, borderRadius: CARD_RADIUS, overflow: 'hidden' }}>
+        {photo ? (
+          <>
+            {/* The owner's photo under a dark layer, so the type and stamps stay readable on any image. */}
+            <Image source={{ uri: photo }} resizeMode="cover" accessible={false} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: `rgba(17, 19, 15, ${look.overlay / 100})` }} />
+          </>
+        ) : null}
         {/* Cropped disc in the far corner (the end side: left in RTL), behind everything. */}
         <View
           style={{
@@ -107,9 +83,13 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
 
         {/* Header strip: what shows while stacked. */}
         <View style={{ height: STRIP, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18 }}>
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: face.avatarBg, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt size={17} weight={800} color={face.avatarFg}>{card.business.initial}</Txt>
-          </View>
+          {look.logoUrl ? (
+            <Image source={{ uri: look.logoUrl }} resizeMode="cover" accessible={false} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: face.avatarBg }} />
+          ) : (
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: face.avatarBg, alignItems: 'center', justifyContent: 'center' }}>
+              <Txt size={17} weight={800} color={face.avatarFg}>{card.business.initial}</Txt>
+            </View>
+          )}
           <Txt size={18} weight={800} color={face.fg} numberOfLines={1} style={{ flex: 1, letterSpacing: -0.4 }}>
             {card.business.name}
           </Txt>
@@ -128,9 +108,9 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
           <View style={{ gap: 10 }}>
             <Txt size={14} weight={600} color={face.sub} numberOfLines={1}>{card.program.name}</Txt>
             {points ? (
-              <Meter goal={card.program.goal} current={card.current} onLime={face.stamps === 'lime'} dark={face.stamps === 'dark'} />
+              <Meter goal={card.program.goal} current={card.current} onLime={face.stamps === 'lime'} dark={face.stamps === 'dark' || face.stamps === 'photo'} />
             ) : (
-              <Stamps goal={card.program.goal} current={card.current} surface={face.stamps} columns={stampColumns(card.program.goal)} gap={card.program.goal > 8 ? 6 : 8} />
+              <Stamps goal={card.program.goal} current={card.current} surface={face.stamps} shape={look.stampShape} columns={stampColumns(card.program.goal)} gap={card.program.goal > 8 ? 6 : 8} />
             )}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
@@ -139,12 +119,12 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
                 {ready ? `ההטבה מוכנה: ${card.program.reward}` : `${remainingLabel(card.program.type, missing)}: ${card.program.reward}`}
               </Txt>
               {card.business.isSample ? (
-                <View style={{ alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, backgroundColor: face.stamps === 'dark' ? colors.paperOnInk16 : colors.inkOnLime14 }}>
+                <View style={{ alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, backgroundColor: face.stamps === 'dark' || face.stamps === 'photo' ? colors.paperOnInk16 : colors.inkOnLime14 }}>
                   <Txt size={11} weight={600} color={face.fg}>לדוגמה</Txt>
                 </View>
               ) : null}
             </View>
-            <Wordmark size={14} tone={face.stamps === 'dark' ? 'lime' : 'ink'} />
+            <Wordmark size={14} tone={face.stamps === 'dark' || face.stamps === 'photo' ? 'lime' : 'ink'} />
           </View>
         </View>
       </View>

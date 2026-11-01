@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, FunctionsFetchError, FunctionsHttpError, type User } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 import { AuthError, NetworkError, type Backend } from './backend';
+import { mediaUrl } from '../cardLook';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
 import type { Business, Card, CollectResponse, Profile, Program, Redemption, RedeemResponse, StampEvent } from './types';
 
@@ -41,6 +42,13 @@ const toBusiness = (b: any, program: Program | null): Business => ({
   isSample: b.is_sample,
   lat: b.lat ?? null,
   lng: b.lng ?? null,
+  look: {
+    style: b.card_style ?? 'auto',
+    imageUrl: mediaUrl(SUPABASE_URL, b.card_image_path),
+    logoUrl: mediaUrl(SUPABASE_URL, b.logo_path),
+    overlay: b.card_overlay ?? 55,
+    stampShape: b.stamp_shape ?? 'circle',
+  },
   program,
 });
 
