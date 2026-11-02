@@ -13,6 +13,9 @@ sql_paths = ["./seed.sql"]
 
 [auth]
 site_url = "perko://"
+# The owner dashboard asks for its sign-in code with this URL so the code email uses the business design
+# (supabase/templates/otp.html). On the hosted project: Authentication > URL Configuration > Redirect URLs.
+additional_redirect_urls = ["https://business.getperko.com/"]
 enable_signup = true
 
 [auth.sms]
