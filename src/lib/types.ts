@@ -1,3 +1,4 @@
+import type { WeeklyHours } from '../../supabase/functions/_shared/hours.ts';
 import type { CardStatus, ProgramType } from '../../supabase/functions/_shared/loyalty.ts';
 import type { CardLook } from '../cardLook';
 
@@ -33,7 +34,13 @@ export type Business = {
   initial: string;
   tone: Tone;
   address: string | null;
+  /** Free text, the fallback when the owner has not filled the week (weeklyHours). */
   hours: string | null;
+  /** Opening hours per weekday, Sunday first; null when not set. */
+  weeklyHours: WeeklyHours | null;
+  phone: string | null;
+  /** Optional, set by the owner, e.g. "כשר, בהשגחת הרבנות". */
+  kashrut: string | null;
   website: string | null;
   isSample: boolean;
   /** Map position; null when the business has no location yet. */

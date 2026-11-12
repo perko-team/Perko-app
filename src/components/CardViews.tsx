@@ -1,6 +1,8 @@
 // Wallet card views shared by the wallet, rewards and business screens.
 import * as WebBrowser from 'expo-web-browser';
-import { Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { Linking, Pressable, View } from 'react-native';
+import { hasHours, navigationUrl, telLink, todayLine, weekLines } from '../../supabase/functions/_shared/hours.ts';
 import { FULL_TITLE, progress, remaining, remainingLabel, ruleFacts } from '../../supabase/functions/_shared/loyalty.ts';
 import type { Business, Card } from '../lib/types';
 import { colors, radius, touch } from '../theme';
@@ -139,14 +141,44 @@ export function RulesBox({ program }: { program: NonNullable<Business['program']
   );
 }
 
-/** Address, hours and an optional link out. */
+/**
+ * What a customer needs before walking in: today's hours (all seven days on tap, Friday included), the address
+ * with a navigation link, a phone number to call, kashrut and the website. Anything empty is not shown.
+ */
 export function PlaceInfo({ business }: { business: Business }) {
   const { t } = useTheme();
-  if (!business.address && !business.hours && !business.website) return null;
+  const [allDays, setAllDays] = useState(false);
+  const week = hasHours(business.weeklyHours) ? business.weeklyHours : null;
+  const tel = telLink(business.phone);
+  const nav = navigationUrl(business);
+  const sample = business.isSample;
+  if (!business.address && !week && !business.hours && !tel && !business.kashrut && !business.website) return null;
+  const now = new Date();
+
   return (
-    <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 14, gap: 6 }}>
-      {business.address ? <Txt size={15}><Txt size={15} weight={700}>כתובת: </Txt>{business.address}</Txt> : null}
-      {business.hours ? (
+    <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
+      {week ? (
+        <View style={{ gap: 2 }}>
+          <Txt size={15} weight={700}>{sample ? 'שעות (לדוגמה)' : 'שעות'}</Txt>
+          <Txt size={16} weight={600}>{todayLine(week, now)}</Txt>
+          <Pressable
+            onPress={() => setAllDays((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: allDays }}
+            style={{ minHeight: touch, justifyContent: 'center' }}
+          >
+            <Txt kind="label" style={{ textDecorationLine: 'underline' }}>{allDays ? 'הסתרת השבוע' : 'כל ימות השבוע'}</Txt>
+          </Pressable>
+          {allDays
+            ? weekLines(week, now).map((d) => (
+                <View key={d.day} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }} accessible accessibilityLabel={`${d.day}: ${d.text}`}>
+                  <Txt size={15} weight={d.today ? 800 : 500}>{d.day}</Txt>
+                  <Txt size={15} weight={d.today ? 800 : 500} tabular>{d.text}</Txt>
+                </View>
+              ))
+            : null}
+        </View>
+      ) : business.hours ? (
         <View>
           <Txt size={15} weight={700}>{business.hours.startsWith('שעות לדוגמה') ? 'שעות (לדוגמה)' : 'שעות'}</Txt>
           {/* One line per day range keeps Hebrew and times from mixing in one bidi run. */}
@@ -155,17 +187,26 @@ export function PlaceInfo({ business }: { business: Business }) {
           ))}
         </View>
       ) : null}
+      {business.address ? (
+        <View style={{ gap: 2 }}>
+          <Txt size={15}><Txt size={15} weight={700}>כתובת: </Txt>{business.address}</Txt>
+          {nav ? <LinkRow label="ניווט לעסק" a11y={`ניווט אל ${business.name}`} onPress={() => Linking.openURL(nav)} /> : null}
+        </View>
+      ) : null}
+      {tel ? <LinkRow label={`התקשרות: ${business.phone}`} a11y={`התקשרות אל ${business.name}, ${business.phone}`} onPress={() => Linking.openURL(tel)} /> : null}
+      {business.kashrut ? <Txt size={15}><Txt size={15} weight={700}>כשרות: </Txt>{business.kashrut}</Txt> : null}
       {business.website ? (
-        <Pressable
-          onPress={() => WebBrowser.openBrowserAsync(business.website!)}
-          accessibilityRole="link"
-          accessibilityLabel={`האתר של ${business.name}`}
-          style={{ minHeight: touch, justifyContent: 'center' }}
-        >
-          <Txt kind="label" style={{ textDecorationLine: 'underline' }}>לאתר של העסק</Txt>
-        </Pressable>
+        <LinkRow label="לאתר של העסק" a11y={`האתר של ${business.name}`} onPress={() => WebBrowser.openBrowserAsync(business.website!)} />
       ) : null}
     </View>
+  );
+}
+
+function LinkRow({ label, a11y, onPress }: { label: string; a11y: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="link" accessibilityLabel={a11y} style={{ minHeight: touch, justifyContent: 'center', alignSelf: 'flex-start' }}>
+      <Txt kind="label" style={{ textDecorationLine: 'underline' }}>{label}</Txt>
+    </Pressable>
   );
 }
 

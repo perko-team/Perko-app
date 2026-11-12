@@ -3,13 +3,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { DashboardProvider, useDashboard } from '../../components/Dashboard';
-import { BellIcon, CardIcon, ExitIcon, LogIcon, MoreIcon, OverviewIcon, ProgramIcon, QrIcon, TeamIcon } from '../../components/Icons';
+import { BellIcon, CardIcon, ExitIcon, InfoIcon, LogIcon, MoreIcon, OverviewIcon, ProgramIcon, QrIcon, TeamIcon } from '../../components/Icons';
 import { getAlerts, media } from '../../lib/api';
 
 const SECTIONS = [
   { href: '/overview', label: 'סקירה', Icon: OverviewIcon },
   { href: '/card', label: 'הכרטיס', Icon: CardIcon },
   { href: '/program', label: 'תוכנית', Icon: ProgramIcon },
+  { href: '/info', label: 'פרטי העסק', Icon: InfoIcon },
   { href: '/team', label: 'צוות', Icon: TeamIcon },
   { href: '/log', label: 'יומן', Icon: LogIcon },
   { href: '/alerts', label: 'התראות', Icon: BellIcon },
@@ -69,7 +70,7 @@ function Shell({ children }: { children: ReactNode }) {
       )}
     </label>
   );
-  const isCurrent = (href: string) => (path === href || (href === '/more' && ['/program', '/alerts', '/qr', '/more'].includes(path)) ? 'page' : undefined);
+  const isCurrent = (href: string) => (path === href || (href === '/more' && ['/program', '/info', '/alerts', '/qr', '/more'].includes(path)) ? 'page' : undefined);
 
   return (
     <div className="shell">

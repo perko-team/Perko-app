@@ -1,6 +1,7 @@
 // Everything the dashboard reads and writes. Reads go through RLS and the owner RPCs
 // (supabase/migrations/20261031100200_business_members.sql); PINs and counter codes through business-admin.
 import type { BusinessAdminRequest, BusinessAdminResponse, PinMode } from '../../supabase/functions/_shared/api-types.ts';
+import { parseWeeklyHours, type WeeklyHours } from '../../supabase/functions/_shared/hours.ts';
 import { MEDIA_BUCKET, mediaUrl, type CardStyle, type StampShape } from '../../src/cardLook.ts';
 import { sb, SUPABASE_URL } from './supabase';
 
@@ -59,6 +60,21 @@ export async function myBusinesses(): Promise<Business[]> {
       look: { style: b!.card_style, imagePath: b!.card_image_path, logoPath: b!.logo_path, overlay: b!.card_overlay, stampShape: b!.stamp_shape },
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** What customers see on the business page: hours per weekday, phone and kashrut. */
+export type BusinessInfo = { weeklyHours: WeeklyHours | null; phone: string | null; kashrut: string | null };
+
+export async function getBusinessInfo(businessId: string): Promise<BusinessInfo> {
+  const r = check(await sb().from('businesses').select('weekly_hours, phone, kashrut').eq('id', businessId).single()) as Record<string, unknown>;
+  return { weeklyHours: parseWeeklyHours(r.weekly_hours), phone: (r.phone as string) ?? null, kashrut: (r.kashrut as string) ?? null };
+}
+
+/** Saved under RLS: owners may update these columns of their own business only. */
+export async function saveBusinessInfo(businessId: string, info: BusinessInfo): Promise<void> {
+  check(await sb().from('businesses').update({
+    weekly_hours: info.weeklyHours, phone: info.phone?.trim() || null, kashrut: info.kashrut?.trim() || null,
+  }).eq('id', businessId));
 }
 
 /** Public URL of a business-media file. */

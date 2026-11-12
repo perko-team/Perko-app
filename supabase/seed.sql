@@ -16,6 +16,16 @@ insert into public.businesses (id, slug, name, kind, category, initial, tone, ad
   ('a0000000-0000-4000-8000-000000000005', 'pirhei-hasdera', 'פרחי השדרה', 'חנות פרחים', 'shop', 'פ', 'pale',
    'כתובת לדוגמה, עמק רפאים', 'שעות לדוגמה: א׳-ה׳ 9:00-19:00, ו׳ 8:00-14:00', null, true, 31.7598, 35.2172);
 
+-- Opening hours per weekday (Friday included), as migration 20261112120000 sets them on a live project.
+update public.businesses set weekly_hours = case slug
+  when 'cafe-pina' then '[{"open":"07:00","close":"19:00"},{"open":"07:00","close":"19:00"},{"open":"07:00","close":"19:00"},{"open":"07:00","close":"19:00"},{"open":"07:00","close":"19:00"},{"open":"07:00","close":"14:00"},null]'::jsonb
+  when 'zaatar' then '[{"open":"12:00","close":"23:00"},{"open":"12:00","close":"23:00"},{"open":"12:00","close":"23:00"},{"open":"12:00","close":"23:00"},{"open":"12:00","close":"23:00"},null,null]'::jsonb
+  when 'dafdouf' then '[{"open":"10:00","close":"20:00"},{"open":"10:00","close":"20:00"},{"open":"10:00","close":"20:00"},{"open":"10:00","close":"20:00"},{"open":"10:00","close":"20:00"},{"open":"09:00","close":"14:00"},null]'::jsonb
+  when 'hagefen-bakery' then '[{"open":"06:30","close":"15:00"},{"open":"06:30","close":"15:00"},{"open":"06:30","close":"15:00"},{"open":"06:30","close":"15:00"},{"open":"06:30","close":"15:00"},{"open":"06:30","close":"15:00"},null]'::jsonb
+  when 'pirhei-hasdera' then '[{"open":"09:00","close":"19:00"},{"open":"09:00","close":"19:00"},{"open":"09:00","close":"19:00"},{"open":"09:00","close":"19:00"},{"open":"09:00","close":"19:00"},{"open":"08:00","close":"14:00"},null]'::jsonb
+end
+where is_sample and slug in ('cafe-pina', 'zaatar', 'dafdouf', 'hagefen-bakery', 'pirhei-hasdera');
+
 insert into public.programs (id, business_id, name, type, goal, step, reward, rule) values
   ('b0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'כרטיס קפה', 'stamps', 10, 1, 'קפה הפוך עלינו', 'חותמת על כל משקה חם'),
   ('b0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000002', 'כרטיס ארוחות', 'stamps', 6, 1, 'קינוח לשניים', 'חותמת על כל ארוחה במקום'),

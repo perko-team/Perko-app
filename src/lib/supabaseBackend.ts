@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import { parseWeeklyHours } from '../../supabase/functions/_shared/hours.ts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, FunctionsFetchError, FunctionsHttpError, type User } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
@@ -38,6 +39,9 @@ const toBusiness = (b: any, program: Program | null): Business => ({
   tone: b.tone,
   address: b.address,
   hours: b.hours,
+  weeklyHours: parseWeeklyHours(b.weekly_hours),
+  phone: b.phone ?? null,
+  kashrut: b.kashrut ?? null,
   website: b.website,
   isSample: b.is_sample,
   lat: b.lat ?? null,

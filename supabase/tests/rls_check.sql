@@ -327,4 +327,25 @@ begin
   raise notice 'ok   fill-and-redeem: same card and customer, a staff PIN, within 2 minutes, once';
 end $$;
 reset role;
+-- Business info (migration 20261112120000) -------------------------------------------------------------
+do $$ begin
+  assert (select count(*) from businesses where is_sample and weekly_hours is not null) = 5, 'sample businesses have weekly hours';
+  assert (select weekly_hours->5->>'close' from businesses where slug = 'cafe-pina') = '14:00', 'Friday hours';
+  assert (select weekly_hours->6 from businesses where slug = 'cafe-pina') = 'null'::jsonb, 'closed on Saturday';
+  assert valid_weekly_hours(null) and not valid_weekly_hours('[1,2]'::jsonb);
+  assert not valid_weekly_hours('[null,null,null,null,null,null,{"open":"7:00","close":"14:00"}]'::jsonb), 'HH:MM';
+  raise notice 'ok   weekly hours are checked and the samples were migrated';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$update businesses set weekly_hours = '[1]' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'hours must be a valid week');
+select pg_temp.expect_error($q$update businesses set name = 'x' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'owner cannot rename the business here');
+do $$ begin
+  update businesses set phone = '02-6789012', kashrut = 'כשר, בהשגחת הרבנות' where id = 'a0000000-0000-4000-8000-000000000001';
+  update businesses set phone = '02-6789012' where id = 'a0000000-0000-4000-8000-000000000002';
+  assert (select phone from businesses where id = 'a0000000-0000-4000-8000-000000000001') = '02-6789012', 'owner sets the phone';
+  assert (select phone from businesses where id = 'a0000000-0000-4000-8000-000000000002') is null, 'not on another business';
+  raise notice 'ok   owners set phone, kashrut and hours on their own business only';
+end $$;
+reset role;
 \echo ALL DB CHECKS PASSED
