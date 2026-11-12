@@ -151,3 +151,30 @@ export function wrongPinMessage(attemptsLeft: number): string {
 export function lockedMessage(): string {
   return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר';
 }
+
+/** What the email field says when it is not an email address. */
+export const EMAIL_INVALID = 'כתובת אימייל, למשל noa@example.com';
+/** A phone number typed into the email field, while sign-in is by email only. */
+export const PHONE_IN_EMAIL = 'כרגע נכנסים עם כתובת מייל. אין מייל? אפשר לבקש עזרה בקופה.';
+
+/**
+ * Why the email field cannot be used, or null when it holds an email address. An Israeli mobile number gets
+ * its own message: people who type their phone need to hear that sign-in is by email, not see an email example.
+ */
+export function emailFieldProblem(input: string): string | null {
+  if (normalizeEmail(input)) return null;
+  if (normalizeIsraeliPhone(input)) return PHONE_IN_EMAIL;
+  return EMAIL_INVALID;
+}
+
+/** Under the code field until every digit is typed: why "כניסה" is not yet active. */
+export function codeHint(typed: number, length: number, via: 'email' | 'sms'): string | null {
+  if (typed >= length) return null;
+  return `מקלידים את ${length} הספרות ${via === 'email' ? 'מהמייל' : 'מה-SMS'}`;
+}
+
+/** The resend line under the code: where to look first, then when a new code can be sent. */
+export function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
+  const look = via === 'email' ? 'בודקים בספאם, או שולחים' : 'אפשר לשלוח';
+  return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
+}

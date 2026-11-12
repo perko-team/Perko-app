@@ -2,7 +2,7 @@ import { Redirect, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
-import { formatIsraeliPhone, normalizeEmail, normalizeIsraeliPhone } from '../../supabase/functions/_shared/loyalty.ts';
+import { codeHint, emailFieldProblem, formatIsraeliPhone, normalizeEmail, normalizeIsraeliPhone, resendLine } from '../../supabase/functions/_shared/loyalty.ts';
 import { Wordmark } from '../components/Brand';
 import { Txt } from '../components/Txt';
 import { Button, DemoBanner, Screen, TopBar } from '../components/ui';
@@ -23,8 +23,7 @@ const copy = {
     title: 'כניסה עם\nאימייל',
     lead: 'נשלח קוד חד-פעמי למייל. הכתובת משמשת רק לכניסה לחשבון.',
     codeTitle: 'הקוד שקיבלתם\nבמייל',
-    codeLead: (to: string) => `שלחנו קוד אל ${to}. אם הוא לא מגיע, כדאי לבדוק גם בספאם.`,
-    invalid: 'כתובת אימייל, למשל noa@example.com',
+    codeLead: (to: string) => `שלחנו קוד אל ${to}.`,
   },
   phone: {
     title: 'כניסה עם\nמספר טלפון',
@@ -65,7 +64,8 @@ export default function SignIn() {
 
   const send = async () => {
     if (!target) {
-      setError(tx.invalid);
+      // A phone number typed as an email gets its own message (emailFieldProblem).
+      setError(method === 'email' ? emailFieldProblem(email) : copy.phone.invalid);
       return;
     }
     setBusy(true);
@@ -175,6 +175,11 @@ export default function SignIn() {
             big
           />
         )}
+        {step === 'code' && codeHint(code.length, codeMax, method === 'phone' ? 'sms' : 'email') ? (
+          <Txt kind="small" color={t.onHeroMuted} style={{ marginTop: 8, textAlign: 'center' }}>
+            {codeHint(code.length, codeMax, method === 'phone' ? 'sms' : 'email')}
+          </Txt>
+        ) : null}
 
         {error ? (
           <Txt kind="label" color={t.onHero} style={{ marginTop: 10 }} accessibilityLiveRegion="polite" accessibilityRole="alert">
@@ -194,7 +199,7 @@ export default function SignIn() {
                 accessibilityState={{ disabled: wait > 0 }}
                 style={{ minHeight: touch, justifyContent: 'center', alignItems: 'center' }}
               >
-                <Txt kind="label" color={t.onHeroMuted}>{wait > 0 ? `אפשר לשלוח שוב בעוד ${wait} שניות` : 'שליחת קוד חדש'}</Txt>
+                <Txt kind="label" color={wait > 0 ? t.onHeroMuted : t.onHero} align="center">{resendLine(wait, method === 'phone' ? 'sms' : 'email')}</Txt>
               </Pressable>
             </>
           )}
