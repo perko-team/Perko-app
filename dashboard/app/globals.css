@@ -571,6 +571,26 @@ button {
 .facts dt {
   color: var(--muted);
 }
+.kpi-def {
+  display: block;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-weight: 500;
+}
+.kpi .kpi-def {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+.facts dt .kpi-def {
+  margin-top: 2px;
+}
+.summary-line {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+}
 .facts dd {
   margin: 0;
   font-weight: 700;
