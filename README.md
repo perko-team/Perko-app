@@ -176,6 +176,13 @@ phone.
    their PIN (dots only on screen). On the 4th digit the app calls `collect` again with the PIN; the stamp is
    written only if it matches an active PIN of that business.
 3. Rewards work the same way: "ההטבה מוכנה" shows the same pad, and `redeem` checks the PIN.
+4. **Fill-and-redeem (one PIN):** when a scan fills the card, `collect` returns a `confirmation` (the id of the
+   stamp event that PIN just wrote) and the result offers **"לקבל את ההטבה עכשיו"**. The app sends it to `redeem`
+   with `action: 'fill'`; `apply_redeem_after_fill()` reads the event on the server and accepts it only for the same
+   card and customer, confirmed with a staff PIN, at most 2 minutes old, and once (`redemptions.collect_event_id`
+   is unique). Anything else answers `confirmation_invalid` and the app opens the usual PIN screen. The client is
+   never trusted: the window and the card match are checked in SQL (`FILL_REDEEM_WINDOW_MS` mirrors it in
+   `_shared/loyalty.ts`). The PIN pad tells staff "לצוות: מקלידים את הקוד שלכם ומחזירים את הטלפון".
 
 - **Modes** (`businesses.pin_mode`): *one code for the whole team* (default, a single active `staff_pins` row named
   "צוות") or *a code per staff member* (the log then shows who confirmed each action, and one person's code can be
@@ -186,6 +193,13 @@ phone.
   business) block the customer at that business until midnight Israel time. Every wrong PIN is logged
   (`pin_failures`); a lockout raises a `pin_lockout` alert in the owner's dashboard, and 10 or more wrong PINs at a
   business within an hour (across customers, someone guessing) raise one `pin_failures` alert per hour.
+- **Releasing a lockout:** the owner sees active lockouts at the top of **סקירה** and on **התראות**, with
+  **"שחרור"** and a one-line warning ("אם מישהו ניסה לנחש את הקוד, השחרור מאפשר לו לנסות שוב"). It calls
+  `business-admin` `lockout_release` (owner of that business only), which runs `release_lockout()`: today's wrong
+  PINs of that customer are marked `released_at` (kept, not deleted), the alert gets `resolved_at`, and a
+  `lockout_releases` row shows in the log as **"שחרור נעילה"** with "בעלי העסק" as the actor. The customer can
+  collect at once, and 3 new wrong PINs lock them again. The customer's message says "אפשר לנסות שוב מחר, או לבקש
+  מבעלי העסק לשחרר". In demo mode the locked result has a "הדגמה: בעלי העסק משחררים" button that does the same.
 - **Weakness to know:** in shared mode a customer watching the cashier may learn the team code. The dashboard asks
   owners to change it from time to time and at once when someone leaves; per-staff mode limits the damage to one
   person's code.
@@ -197,20 +211,26 @@ phone.
 owner signs in with a one-time email code and manages their business. A side menu on wide screens, a tab bar on
 phones. A new owner first goes through a three-step guide (program, team PIN, counter code; `businesses.onboarded_at`).
 
-1. **סקירה:** visits, active and returning customers and rewards for 7, 30 or 90 days against the period before,
-   visits per day, a weekday-by-hour heat map, and the card with open, near-reward and ready cards
-   (`business_overview`, `business_daily_visits`, `business_heatmap`).
+1. **סקירה:** a summary line ("השבוע: X ביקורים, Y לקוחות חוזרים, Z הטבות"), today's PIN lockouts with the
+   release action, then visits, active and returning customers and rewards for 7, 30 or 90 days against the period
+   before, each with a one-sentence definition (`dashboard/lib/summary.ts`), visits per day, a weekday-by-hour heat
+   map, and the card with open, near-reward and ready cards (`business_overview`, `business_daily_visits`,
+   `business_heatmap`).
 2. **הכרטיס:** the card's look with a live preview drawn like the app's wallet card (`src/cardLook.ts`, shared):
    a brand face or the owner's photo under a dark layer (30-85%), a logo instead of the initial, the stamp shape
    (circle, cup, heart, star). Images go to the public `business-media` bucket, in the business's own folder
    (owners write only there; JPG/PNG/WEBP up to 5 MB). Saving updates every customer's card at once.
 3. **תוכנית:** goal, reward, collection rule, redemption rule and cooldown, edited in place under RLS. Changes reach
    new cards only (the cooldown applies at once); the screen says so.
-4. **צוות:** PIN mode, add and remove staff, create and reset PINs (shown once).
-5. **יומן:** stamps and redemptions grouped by day, with time (Israel), staff name or "צוות", and the customer by
-   name, the last 4 digits of their phone or a masked email; filters by kind, staff and period; CSV export.
-6. **התראות:** PIN lockouts and bursts of wrong PINs.
-7. **קוד לקופה:** the counter card as PNG and A6 PDF (the same card as `qr:print`, drawn by
+4. **פרטי העסק:** opening hours per weekday (Friday included), a phone number and an optional kashrut line. See
+   "Business info" below.
+5. **צוות:** PIN mode, add and remove staff, create and reset ("איפוס") PINs, shown once, with short answers on why
+   the code is shown once, what reset does and what to do when you work alone.
+6. **יומן:** stamps and redemptions grouped by day, with time (Israel), staff name or "צוות", and the customer by
+   name, the last 4 digits of their phone or a masked email; lockout releases too; filters by kind, staff and
+   period; CSV export.
+7. **התראות:** PIN lockouts (with "שחרור" while active) and bursts of wrong PINs.
+8. **קוד לקופה:** the counter card as PNG and A6 PDF (the same card as `qr:print`, drawn by
    `dashboard/lib/counterCard.ts`), and extra codes.
 
 Access: `business_members` (user, business, role `owner` | `staff`; staff is reserved and has no dashboard access
@@ -232,6 +252,28 @@ with `owners:add`.
    that address (the email template must contain `{{ .Token }}`, see "Email sign-in" above).
 
 Locally: `cd dashboard && cp .env.example .env.local` (fill in the two values), `npm install`, `npm run dev`.
+
+### Business info: structured hours
+
+`businesses.weekly_hours` is a JSON array of seven days, Sunday first; each day is `null` (closed) or
+`{"open": "HH:MM", "close": "HH:MM"}` (close may be `24:00`). `valid_weekly_hours()` checks it in the database and
+`parseWeeklyHours()` in `supabase/functions/_shared/hours.ts` in the app and the dashboard. `phone` and `kashrut`
+(up to 80 characters) sit next to it; owners may update these three columns on their own business only. The app's
+business page shows today's hours in Israel time under the name ("היום, שישי: 07:00-14:00"), the full week on tap,
+a navigation link from the address (map point first, else the address), a tappable phone and kashrut. Empty
+fields are hidden. The old free-text `hours` stays as the fallback until the owner fills the week; migration
+`20261112120000_business_info.sql` moved the five sample businesses to the week (the seed does the same).
+
+### Upgrading a live project to the focus-group changes
+
+Migrations `20261112100000_lockout_release`, `20261112110000_fill_and_redeem` and `20261112120000_business_info`
+only add columns, tables and functions, so the running app keeps working while they apply.
+
+1. Apply the three migrations.
+2. Deploy `collect` and `redeem` (the confirmation and `action: 'fill'`) and `business-admin` (`lockout_release`).
+   Older app versions ignore the new field and keep using the PIN screen.
+3. Redeploy the dashboard (new pages and the release button).
+4. Ship the app update.
 
 ### Upgrading a live project to staff PINs
 
@@ -268,12 +310,12 @@ business card with "הוספה" and a link to its page.
 The home screen shows the cards as physical cards (ID-1 proportions 1.586:1, 20 dp corners, elevation, a 1 dp top-edge
 highlight, one brand colour per business chosen by a hash of its id, a cropped disc echoing the logo's dot).
 
-- **Stack:** each card shows its 70 dp header strip (initial, name, count, or "מוכנה למימוש" with a ring when the
+- **Stack:** each card shows its 70 dp header strip (initial, name, count, or "מלא! ההטבה מחכה" with a ring when the
   reward is ready). The screen scrolls with a Reanimated pan + `withDecay` instead of a ScrollView, because Android's
   ScrollView cannot overscroll: pulling past the top spreads the cards (rubber band), scrolling down pins the cards
   that pass the top edge into a thin compressed pile.
 - **Focus:** a tap springs the card to the top, the others drop into a pile above the tab bar, and the quick actions
-  appear ("מימוש ההטבה" when ready, "סריקה בקופה", "פרטי הכרטיס"). A horizontal swipe moves between cards (RTL: dragging
+  appear ("לקבל את ההטבה" when ready, "סריקה בקופה", "פרטי הכרטיס"), and under them the last 5 collections and the card's rules. A horizontal swipe moves between cards (RTL: dragging
   right brings the next card); a swipe down, a tap on the card or Android back returns to the stack. Light haptics on
   snap and switch.
 - **Accessibility:** every card is a button labelled with `cardA11y` and has "הכרטיס הבא" / "הכרטיס הקודם" actions.
