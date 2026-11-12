@@ -840,6 +840,11 @@ input[type='checkbox'] {
   background: var(--lime);
   color: var(--ink);
 }
+.tag.warn {
+  background: transparent;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+}
 .table-wrap {
   background: var(--panel);
   border: 1px solid var(--line);

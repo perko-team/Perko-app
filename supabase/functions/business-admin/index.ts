@@ -9,6 +9,8 @@
 //   pin_reset     replace a PIN: the old row is deactivated, a new one is created under the same name
 //   qr_list       the business's active counter codes, signed, for printing
 //   qr_create     a new counter code
+//   lockout_release  release the customer locked out behind a pin_lockout alert, so they can collect again
+//                 today. The wrong PINs are kept (marked released) and the log shows "שחרור נעילה".
 // A new PIN is returned once and never stored in clear. Program edits do not come here: owners edit their
 // program directly under RLS (migration 20261031100200_business_members.sql).
 import { signQrPayload, UUID } from '../_shared/token.ts';
@@ -63,6 +65,19 @@ Deno.serve(async (req) => {
   const invalid = (message: string) => json({ status: 'invalid', message } satisfies BusinessAdminResponse, 400);
 
   switch (body.action) {
+    case 'lockout_release': {
+      if (typeof body.alertId !== 'string' || !UUID.test(body.alertId)) return invalid('alertId');
+      const { data: user, error } = await db.rpc('release_lockout', {
+        p_business: business.id,
+        p_alert: body.alertId,
+        p_by: caller.service ? null : caller.id,
+      });
+      if (error) throw error;
+      // Not a lockout of this business, or already released.
+      if (!user) return invalid('alert');
+      return json({ status: 'ok' } satisfies BusinessAdminResponse);
+    }
+
     case 'pin_mode': {
       if (body.mode !== 'shared' && body.mode !== 'per_staff') return invalid('mode');
       if (body.mode === business.pin_mode) return json({ status: 'ok' } satisfies BusinessAdminResponse);

@@ -153,9 +153,36 @@ function wrongPinMessage(attemptsLeft: number): string {
   return `הקוד שגוי. נשארו ${attemptsLeft} ניסיונות`;
 }
 
-/** Shown when the customer is locked out at a business until midnight. */
+/** Shown when the customer is locked out at a business until midnight, or until the owner releases it. */
 function lockedMessage(): string {
-  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר';
+  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר, או לבקש מבעלי העסק לשחרר';
+}
+
+/** What the email field says when it is not an email address. */
+const EMAIL_INVALID = 'כתובת אימייל, למשל noa@example.com';
+/** A phone number typed into the email field, while sign-in is by email only. */
+const PHONE_IN_EMAIL = 'כרגע נכנסים עם כתובת מייל. אין מייל? אפשר לבקש עזרה בקופה.';
+
+/**
+ * Why the email field cannot be used, or null when it holds an email address. An Israeli mobile number gets
+ * its own message: people who type their phone need to hear that sign-in is by email, not see an email example.
+ */
+function emailFieldProblem(input: string): string | null {
+  if (normalizeEmail(input)) return null;
+  if (normalizeIsraeliPhone(input)) return PHONE_IN_EMAIL;
+  return EMAIL_INVALID;
+}
+
+/** Under the code field until every digit is typed: why "כניסה" is not yet active. */
+function codeHint(typed: number, length: number, via: 'email' | 'sms'): string | null {
+  if (typed >= length) return null;
+  return `מקלידים את ${length} הספרות ${via === 'email' ? 'מהמייל' : 'מה-SMS'}`;
+}
+
+/** The resend line under the code: where to look first, then when a new code can be sent. */
+function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
+  const look = via === 'email' ? 'בודקים בספאם, או שולחים' : 'אפשר לשלוח';
+  return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
 }
 
 // ---- _shared/token.ts
@@ -325,7 +352,8 @@ type BusinessAdminRequest =
   | { action: 'staff_remove'; businessId: string; staffPinId: string }
   | { action: 'pin_reset'; businessId: string; staffPinId: string }
   | { action: 'qr_list'; businessId: string }
-  | { action: 'qr_create'; businessId: string; label?: string };
+  | { action: 'qr_create'; businessId: string; label?: string }
+  | { action: 'lockout_release'; businessId: string; alertId: string }; // clears today's PIN lockout behind the alert
 
 type CounterCode = { id: string; label: string | null; payload: string; createdAt: string };
 

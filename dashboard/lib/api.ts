@@ -34,11 +34,12 @@ export type Program = {
 
 export type Staff = { id: string; name: string; createdAt: string };
 
-export type LogRow = { kind: 'stamp' | 'redeem'; createdAt: string; amount: number | null; reward: string | null; staffName: string; customer: string };
+export type LogRow = { kind: 'stamp' | 'redeem' | 'release'; createdAt: string; amount: number | null; reward: string | null; staffName: string; customer: string };
 
 export type Insights = { activeCustomers: number; returningCustomers: number; rewardsRedeemed: number; visits: number; visitsPerCustomer: number };
 
-export type Alert = { id: string; kind: 'pin_lockout' | 'pin_failures'; createdAt: string; seenAt: string | null; failures: number | null; customer: string | null };
+// active: a lockout that is still in force today (not released); the owner can release it.
+export type Alert = { id: string; kind: 'pin_lockout' | 'pin_failures'; createdAt: string; seenAt: string | null; failures: number | null; customer: string | null; resolvedAt: string | null; active: boolean };
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -179,7 +180,17 @@ export async function getInsights(businessId: string, days: number): Promise<Ins
 
 export async function getAlerts(businessId: string): Promise<Alert[]> {
   const rows = check(await sb().rpc('business_alert_list', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
-  return rows.map((r) => ({ id: r.id, kind: r.kind, createdAt: r.created_at, seenAt: r.seen_at, failures: r.failures, customer: r.customer }));
+  return rows.map((r) => ({
+    id: r.id, kind: r.kind, createdAt: r.created_at, seenAt: r.seen_at, failures: r.failures, customer: r.customer,
+    resolvedAt: r.resolved_at ?? null, active: r.active === true,
+  }));
+}
+
+/** Releases a customer's PIN lockout (business-admin checks that the caller owns the business). */
+export async function releaseLockout(businessId: string, alertId: string): Promise<void> {
+  const res = await businessAdmin({ action: 'lockout_release', businessId, alertId });
+  if (res.status === 'forbidden') throw new Error('רק בעלי העסק יכולים לשחרר נעילה');
+  if (res.status === 'invalid') throw new Error('הנעילה כבר שוחררה או שאינה בתוקף');
 }
 
 export async function markAlertsSeen(businessId: string): Promise<void> {

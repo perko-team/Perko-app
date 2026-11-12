@@ -153,9 +153,36 @@ function wrongPinMessage(attemptsLeft: number): string {
   return `הקוד שגוי. נשארו ${attemptsLeft} ניסיונות`;
 }
 
-/** Shown when the customer is locked out at a business until midnight. */
+/** Shown when the customer is locked out at a business until midnight, or until the owner releases it. */
 function lockedMessage(): string {
-  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר';
+  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר, או לבקש מבעלי העסק לשחרר';
+}
+
+/** What the email field says when it is not an email address. */
+const EMAIL_INVALID = 'כתובת אימייל, למשל noa@example.com';
+/** A phone number typed into the email field, while sign-in is by email only. */
+const PHONE_IN_EMAIL = 'כרגע נכנסים עם כתובת מייל. אין מייל? אפשר לבקש עזרה בקופה.';
+
+/**
+ * Why the email field cannot be used, or null when it holds an email address. An Israeli mobile number gets
+ * its own message: people who type their phone need to hear that sign-in is by email, not see an email example.
+ */
+function emailFieldProblem(input: string): string | null {
+  if (normalizeEmail(input)) return null;
+  if (normalizeIsraeliPhone(input)) return PHONE_IN_EMAIL;
+  return EMAIL_INVALID;
+}
+
+/** Under the code field until every digit is typed: why "כניסה" is not yet active. */
+function codeHint(typed: number, length: number, via: 'email' | 'sms'): string | null {
+  if (typed >= length) return null;
+  return `מקלידים את ${length} הספרות ${via === 'email' ? 'מהמייל' : 'מה-SMS'}`;
+}
+
+/** The resend line under the code: where to look first, then when a new code can be sent. */
+function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
+  const look = via === 'email' ? 'בודקים בספאם, או שולחים' : 'אפשר לשלוח';
+  return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
 }
 
 // ---- _shared/token.ts
@@ -325,7 +352,8 @@ type BusinessAdminRequest =
   | { action: 'staff_remove'; businessId: string; staffPinId: string }
   | { action: 'pin_reset'; businessId: string; staffPinId: string }
   | { action: 'qr_list'; businessId: string }
-  | { action: 'qr_create'; businessId: string; label?: string };
+  | { action: 'qr_create'; businessId: string; label?: string }
+  | { action: 'lockout_release'; businessId: string; alertId: string }; // clears today's PIN lockout behind the alert
 
 type CounterCode = { id: string; label: string | null; payload: string; createdAt: string };
 
@@ -476,6 +504,8 @@ async function issuePin(db: SupabaseClient, secret: string, businessId: string, 
 //   pin_reset     replace a PIN: the old row is deactivated, a new one is created under the same name
 //   qr_list       the business's active counter codes, signed, for printing
 //   qr_create     a new counter code
+//   lockout_release  release the customer locked out behind a pin_lockout alert, so they can collect again
+//                 today. The wrong PINs are kept (marked released) and the log shows "שחרור נעילה".
 // A new PIN is returned once and never stored in clear. Program edits do not come here: owners edit their
 // program directly under RLS (migration 20261031100200_business_members.sql).
 
@@ -526,6 +556,19 @@ Deno.serve(async (req) => {
   const invalid = (message: string) => json({ status: 'invalid', message } satisfies BusinessAdminResponse, 400);
 
   switch (body.action) {
+    case 'lockout_release': {
+      if (typeof body.alertId !== 'string' || !UUID.test(body.alertId)) return invalid('alertId');
+      const { data: user, error } = await db.rpc('release_lockout', {
+        p_business: business.id,
+        p_alert: body.alertId,
+        p_by: caller.service ? null : caller.id,
+      });
+      if (error) throw error;
+      // Not a lockout of this business, or already released.
+      if (!user) return invalid('alert');
+      return json({ status: 'ok' } satisfies BusinessAdminResponse);
+    }
+
     case 'pin_mode': {
       if (body.mode !== 'shared' && body.mode !== 'per_staff') return invalid('mode');
       if (body.mode === business.pin_mode) return json({ status: 'ok' } satisfies BusinessAdminResponse);

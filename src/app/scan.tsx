@@ -12,6 +12,7 @@ import { Progress } from '../components/Stamps';
 import { Txt } from '../components/Txt';
 import { Button } from '../components/ui';
 import { useTheme } from '../lib/appearance';
+import { api } from '../lib/api';
 import { checkCollect, confirmCollect, type CollectOutcome } from '../lib/collect';
 import { DEMO } from '../lib/config';
 import { demoQrPayload, SAMPLE_BUSINESSES } from '../lib/demoBackend';
@@ -252,6 +253,19 @@ function ResultSheet({ outcome, onAgain, onRetry, onClose }: { outcome: CollectO
         />
       ) : null}
       {c.foot ? <Txt size={16} style={{ marginTop: 14 }}>{c.foot}</Txt> : null}
+      {DEMO && outcome.status === 'locked' ? (
+        <Button
+          label="הדגמה: בעלי העסק משחררים"
+          variant="quiet"
+          small
+          hint="מדמה את כפתור השחרור באתר הניהול, ואז סורקים שוב"
+          onPress={async () => {
+            await api.demoReleaseLockout?.(outcome.businessName);
+            onRetry();
+          }}
+          style={{ alignSelf: 'flex-start', marginTop: 14 }}
+        />
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
         {c.primary === 'redeem' && 'cardId' in outcome && outcome.cardId ? (
           <Button label="למימוש ההטבה" onPress={() => router.replace({ pathname: '/redeem/[id]', params: { id: outcome.cardId! } })} />

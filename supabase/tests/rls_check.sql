@@ -164,6 +164,57 @@ begin
 end $$;
 reset role;
 
+-- Lockout release (migration 20261112100000) ---------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+select pg_temp.expect_error($q$select release_lockout('a0000000-0000-4000-8000-000000000001', gen_random_uuid(), null)$q$, 'customer cannot release a lockout');
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$select release_lockout('a0000000-0000-4000-8000-000000000001', gen_random_uuid(), null)$q$, 'owner cannot call release_lockout directly (only through business-admin)');
+do $$ begin
+  assert (select active from business_alert_list('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout'), 'today''s lockout is active';
+end $$;
+reset role;
+set role service_role;
+do $$
+declare
+  u uuid := '11111111-1111-4111-8111-111111111111';
+  b uuid := 'a0000000-0000-4000-8000-000000000001';
+  a uuid;
+  r record;
+begin
+  -- Lock the customer again (one failure is already on record since the last success).
+  perform register_pin_failure(u, b, 'collect');
+  perform register_pin_failure(u, b, 'collect');
+  assert pin_locked_until(u, b) is not null, 'locked again';
+  select id into a from business_alerts where kind = 'pin_lockout' and business_id = b and user_id = u order by created_at desc limit 1;
+  assert release_lockout('a0000000-0000-4000-8000-000000000002', a, null) is null, 'an alert of another business releases nothing';
+  assert pin_locked_until(u, b) is not null;
+  assert release_lockout(b, a, '33333333-3333-4333-8333-333333333333') = u, 'release returns the customer';
+  assert pin_locked_until(u, b) is null and pin_failures_today(u, b) = 0, 'released: can collect at once';
+  assert (select count(*) from pin_failures where user_id = u and business_id = b and released_at is not null) >= 3, 'failures kept, marked released';
+  assert release_lockout(b, a, null) is null, 'a release twice does nothing';
+  assert (select resolved_at from business_alerts where id = a) is not null;
+
+  assert register_pin_failure(u, b, 'collect') = 1;
+  assert register_pin_failure(u, b, 'collect') = 2;
+  assert register_pin_failure(u, b, 'collect') = 3;
+  assert pin_locked_until(u, b) is not null, 'the lockout still triggers after 3 wrong PINs';
+  raise notice 'ok   the owner''s release clears today''s lockout, keeps the failures and the lockout still works';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+do $$
+declare r record;
+begin
+  select * into r from business_log('a0000000-0000-4000-8000-000000000001') where kind = 'release';
+  assert r.staff_name = 'בעלי העסק' and r.customer = '•••4567', format('release log row %s', r);
+  assert (select count(*) from business_alert_list('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and not active and resolved_at is not null) = 2, 'both earlier lockouts are settled';
+  assert (select count(*) from business_alert_list('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and active) = 1, 'the new lockout is active';
+  raise notice 'ok   the release shows in the owner''s log, and alerts say which lockouts are active';
+end $$;
+reset role;
+
 -- As the table owner: customer_label is callable only from the security-definer RPCs.
 do $$ begin
   insert into profiles (id, name) values ('11111111-1111-4111-8111-111111111111', 'נועה') on conflict (id) do update set name = excluded.name;

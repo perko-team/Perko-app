@@ -57,7 +57,8 @@ export type BusinessAdminRequest =
   | { action: 'staff_remove'; businessId: string; staffPinId: string }
   | { action: 'pin_reset'; businessId: string; staffPinId: string }
   | { action: 'qr_list'; businessId: string }
-  | { action: 'qr_create'; businessId: string; label?: string };
+  | { action: 'qr_create'; businessId: string; label?: string }
+  | { action: 'lockout_release'; businessId: string; alertId: string }; // clears today's PIN lockout behind the alert
 
 export type CounterCode = { id: string; label: string | null; payload: string; createdAt: string };
 

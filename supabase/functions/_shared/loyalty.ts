@@ -147,9 +147,9 @@ export function wrongPinMessage(attemptsLeft: number): string {
   return `הקוד שגוי. נשארו ${attemptsLeft} ניסיונות`;
 }
 
-/** Shown when the customer is locked out at a business until midnight. */
+/** Shown when the customer is locked out at a business until midnight, or until the owner releases it. */
 export function lockedMessage(): string {
-  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר';
+  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר, או לבקש מבעלי העסק לשחרר';
 }
 
 /** What the email field says when it is not an email address. */

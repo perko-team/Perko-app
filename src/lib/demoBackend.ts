@@ -148,6 +148,15 @@ export function createDemoBackend(): Backend {
     return count >= PIN_MAX_FAILURES ? { status: 'locked' as const, until: midnight() } : { status: 'wrong_pin' as const, attemptsLeft: PIN_MAX_FAILURES - count };
   };
 
+  /** The owner's release (business-admin lockout_release): today's wrong PINs no longer count. */
+  const demoReleaseLockout = async (businessName: string) => {
+    const s = await load();
+    const business = SAMPLE_BUSINESSES.find((b) => b.name === businessName);
+    if (!business) return;
+    s.pinFailures = { ...s.pinFailures, [business.id]: { day: today(), count: 0 } };
+    await save();
+  };
+
   /** collect with pin === null is the 'check' step: nothing is written. */
   const collectDemo = async (payload: string, _source: CollectSource, pin: string | null): Promise<CollectResponse> => {
     await delay();
@@ -190,6 +199,7 @@ export function createDemoBackend(): Backend {
 
   return {
     mode: 'demo',
+    demoReleaseLockout,
 
     async sendCode() {
       await delay();
