@@ -1,0 +1,540 @@
+[
+ {
+  "n": 19,
+  "theme": "Staff PIN on the customer's phone slows the counter / feels intrusive",
+  "by_group": {
+   "L": 3,
+   "LM": 3,
+   "M": 5,
+   "UM": 3,
+   "W": 5
+  },
+  "customers": 10,
+  "owners": 9,
+  "ids": [
+   "L-05",
+   "L-07",
+   "L-08",
+   "LM-04",
+   "LM-05",
+   "LM-07",
+   "M-02",
+   "M-03",
+   "M-04",
+   "M-07",
+   "M-09",
+   "UM-01",
+   "UM-02",
+   "UM-07",
+   "W-02",
+   "W-03",
+   "W-07",
+   "W-08",
+   "W-10"
+  ]
+ },
+ {
+  "n": 15,
+  "theme": "Sign-in: email only, phone rejected, code wait",
+  "by_group": {
+   "L": 4,
+   "LM": 3,
+   "M": 5,
+   "UM": 1,
+   "W": 2
+  },
+  "customers": 11,
+  "owners": 4,
+  "ids": [
+   "L-01",
+   "L-04",
+   "L-05",
+   "L-09",
+   "LM-01",
+   "LM-05",
+   "LM-10",
+   "M-01",
+   "M-02",
+   "M-04",
+   "M-08",
+   "M-10",
+   "UM-02",
+   "W-01",
+   "W-03"
+  ]
+ },
+ {
+  "n": 14,
+  "theme": "Rules unclear: qualifying purchase, cooldown, points rate, jargon",
+  "by_group": {
+   "L": 4,
+   "LM": 1,
+   "M": 2,
+   "UM": 4,
+   "W": 3
+  },
+  "customers": 9,
+  "owners": 5,
+  "ids": [
+   "L-01",
+   "L-02",
+   "L-03",
+   "L-07",
+   "LM-04",
+   "M-05",
+   "M-07",
+   "UM-02",
+   "UM-05",
+   "UM-08",
+   "UM-10",
+   "W-04",
+   "W-06",
+   "W-09"
+  ]
+ },
+ {
+  "n": 10,
+  "theme": "Full card / stamp grid / progress visuals unclear",
+  "by_group": {
+   "L": 2,
+   "LM": 1,
+   "M": 2,
+   "UM": 3,
+   "W": 2
+  },
+  "customers": 9,
+  "owners": 1,
+  "ids": [
+   "L-01",
+   "L-10",
+   "LM-02",
+   "M-02",
+   "M-05",
+   "UM-01",
+   "UM-04",
+   "UM-05",
+   "W-01",
+   "W-05"
+  ]
+ },
+ {
+  "n": 10,
+  "theme": "Business info missing: kashrut, Friday hours, contact, booking, distance",
+  "by_group": {
+   "L": 2,
+   "LM": 3,
+   "M": 1,
+   "UM": 2,
+   "W": 2
+  },
+  "customers": 5,
+  "owners": 5,
+  "ids": [
+   "L-03",
+   "L-10",
+   "LM-05",
+   "LM-06",
+   "LM-09",
+   "M-09",
+   "UM-03",
+   "UM-10",
+   "W-04",
+   "W-08"
+  ]
+ },
+ {
+  "n": 9,
+  "theme": "Owner: printer, POS, moving off paper cards",
+  "by_group": {
+   "L": 1,
+   "LM": 3,
+   "M": 1,
+   "UM": 2,
+   "W": 2
+  },
+  "customers": 2,
+  "owners": 7,
+  "ids": [
+   "L-07",
+   "LM-07",
+   "LM-09",
+   "LM-10",
+   "M-01",
+   "UM-03",
+   "UM-07",
+   "W-07",
+   "W-10"
+  ]
+ },
+ {
+  "n": 9,
+  "theme": "Owner: dashboard metrics and sections hard to read",
+  "by_group": {
+   "L": 1,
+   "LM": 3,
+   "M": 2,
+   "UM": 1,
+   "W": 2
+  },
+  "customers": 0,
+  "owners": 9,
+  "ids": [
+   "L-09",
+   "LM-08",
+   "LM-09",
+   "LM-10",
+   "M-08",
+   "M-09",
+   "UM-09",
+   "W-07",
+   "W-10"
+  ]
+ },
+ {
+  "n": 8,
+  "theme": "Too few real businesses / value not proven",
+  "by_group": {
+   "L": 3,
+   "LM": 2,
+   "M": 0,
+   "UM": 3,
+   "W": 0
+  },
+  "customers": 6,
+  "owners": 2,
+  "ids": [
+   "L-01",
+   "L-03",
+   "L-07",
+   "LM-02",
+   "LM-06",
+   "UM-01",
+   "UM-06",
+   "UM-09"
+  ]
+ },
+ {
+  "n": 8,
+  "theme": "Language & readability (Hebrew only, small/low-contrast text)",
+  "by_group": {
+   "L": 2,
+   "LM": 2,
+   "M": 2,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 7,
+  "owners": 1,
+  "ids": [
+   "L-04",
+   "L-05",
+   "LM-01",
+   "LM-04",
+   "M-05",
+   "M-10",
+   "UM-05",
+   "W-02"
+  ]
+ },
+ {
+  "n": 7,
+  "theme": "Owner: no way to message customers / win back / nudges",
+  "by_group": {
+   "L": 2,
+   "LM": 1,
+   "M": 1,
+   "UM": 2,
+   "W": 1
+  },
+  "customers": 2,
+  "owners": 5,
+  "ids": [
+   "L-02",
+   "L-10",
+   "LM-08",
+   "M-08",
+   "UM-04",
+   "UM-08",
+   "W-09"
+  ]
+ },
+ {
+  "n": 6,
+  "theme": "Rewards tab: no redeem button, placeholder icon, duplicates wallet",
+  "by_group": {
+   "L": 3,
+   "LM": 0,
+   "M": 1,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 6,
+  "owners": 0,
+  "ids": [
+   "L-02",
+   "L-04",
+   "L-06",
+   "M-03",
+   "UM-04",
+   "W-01"
+  ]
+ },
+ {
+  "n": 6,
+  "theme": "Card detail screen mostly empty / overlaps",
+  "by_group": {
+   "L": 1,
+   "LM": 1,
+   "M": 2,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 6,
+  "owners": 0,
+  "ids": [
+   "L-02",
+   "LM-02",
+   "M-01",
+   "M-03",
+   "UM-01",
+   "W-05"
+  ]
+ },
+ {
+  "n": 5,
+  "theme": "PIN lockout until midnight, no owner unblock",
+  "by_group": {
+   "L": 1,
+   "LM": 1,
+   "M": 1,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 0,
+  "owners": 5,
+  "ids": [
+   "L-08",
+   "LM-07",
+   "M-09",
+   "UM-07",
+   "W-07"
+  ]
+ },
+ {
+  "n": 5,
+  "theme": "Owner: PIN shown once / shared across shifts / solo owner",
+  "by_group": {
+   "L": 2,
+   "LM": 0,
+   "M": 1,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 0,
+  "owners": 5,
+  "ids": [
+   "L-07",
+   "L-09",
+   "M-07",
+   "UM-07",
+   "W-10"
+  ]
+ },
+ {
+  "n": 5,
+  "theme": "Demo banner on every screen / demo scan button",
+  "by_group": {
+   "L": 1,
+   "LM": 1,
+   "M": 1,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 5,
+  "owners": 0,
+  "ids": [
+   "L-06",
+   "LM-03",
+   "M-06",
+   "UM-03",
+   "W-05"
+  ]
+ },
+ {
+  "n": 4,
+  "theme": "Owner: cannot sign up alone / owner login by email",
+  "by_group": {
+   "L": 0,
+   "LM": 2,
+   "M": 1,
+   "UM": 1,
+   "W": 0
+  },
+  "customers": 0,
+  "owners": 4,
+  "ids": [
+   "LM-08",
+   "LM-09",
+   "M-07",
+   "UM-09"
+  ]
+ },
+ {
+  "n": 4,
+  "theme": "No Apple/Google Wallet pass",
+  "by_group": {
+   "L": 0,
+   "LM": 1,
+   "M": 1,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 4,
+  "owners": 0,
+  "ids": [
+   "LM-03",
+   "M-03",
+   "UM-01",
+   "W-01"
+  ]
+ },
+ {
+  "n": 3,
+  "theme": "Owner: program changes apply to new cards only (confusing)",
+  "by_group": {
+   "L": 0,
+   "LM": 0,
+   "M": 2,
+   "UM": 1,
+   "W": 0
+  },
+  "customers": 0,
+  "owners": 3,
+  "ids": [
+   "M-08",
+   "M-10",
+   "UM-08"
+  ]
+ },
+ {
+  "n": 3,
+  "theme": "Owner: price and cost unknown, longevity risk",
+  "by_group": {
+   "L": 1,
+   "LM": 1,
+   "M": 0,
+   "UM": 1,
+   "W": 0
+  },
+  "customers": 0,
+  "owners": 3,
+  "ids": [
+   "L-09",
+   "LM-09",
+   "UM-09"
+  ]
+ },
+ {
+  "n": 3,
+  "theme": "Onboarding too long",
+  "by_group": {
+   "L": 1,
+   "LM": 1,
+   "M": 1,
+   "UM": 0,
+   "W": 0
+  },
+  "customers": 3,
+  "owners": 0,
+  "ids": [
+   "L-05",
+   "LM-05",
+   "M-04"
+  ]
+ },
+ {
+  "n": 2,
+  "theme": "Two scan entry points / two buttons on scan",
+  "by_group": {
+   "L": 0,
+   "LM": 1,
+   "M": 0,
+   "UM": 0,
+   "W": 1
+  },
+  "customers": 2,
+  "owners": 0,
+  "ids": [
+   "LM-01",
+   "W-02"
+  ]
+ },
+ {
+  "n": 2,
+  "theme": "Suggestions/upsell inside the wallet",
+  "by_group": {
+   "L": 0,
+   "LM": 0,
+   "M": 1,
+   "UM": 1,
+   "W": 0
+  },
+  "customers": 2,
+  "owners": 0,
+  "ids": [
+   "M-06",
+   "UM-06"
+  ]
+ },
+ {
+  "n": 2,
+  "theme": "Second scan of a full card: is the stamp lost?",
+  "by_group": {
+   "L": 0,
+   "LM": 1,
+   "M": 1,
+   "UM": 0,
+   "W": 0
+  },
+  "customers": 2,
+  "owners": 0,
+  "ids": [
+   "LM-03",
+   "M-04"
+  ]
+ },
+ {
+  "n": 2,
+  "theme": "Privacy: cloud provider not named",
+  "by_group": {
+   "L": 0,
+   "LM": 0,
+   "M": 1,
+   "UM": 1,
+   "W": 0
+  },
+  "customers": 2,
+  "owners": 0,
+  "ids": [
+   "M-02",
+   "UM-03"
+  ]
+ },
+ {
+  "n": 2,
+  "theme": "Owner: who is the customer (identity)",
+  "by_group": {
+   "L": 0,
+   "LM": 0,
+   "M": 0,
+   "UM": 1,
+   "W": 1
+  },
+  "customers": 0,
+  "owners": 2,
+  "ids": [
+   "UM-08",
+   "W-09"
+  ]
+ }
+]

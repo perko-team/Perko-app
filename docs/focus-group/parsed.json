@@ -1,0 +1,986 @@
+[
+{
+"id": "L-01",
+"who": "Yossi Ohana, 58, night security guard (minimum wage)",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "no",
+"issues": [
+"email-only-signin",
+"phone-in-email-field-weak-error",
+"full-card-visual-unclear",
+"rewards-not-everyday-needs",
+"reward-value-not-in-shekels"
+],
+"praise": [
+"clear-hand-to-cashier-screen",
+"simple-redeem-confirmation"
+],
+"group": "L"
+},
+{
+"id": "L-02",
+"who": "Shira Ben-David, 23, social work student on loans, part-time waitress",
+"role": "customer",
+"tech": 5,
+"sat": 4,
+"use": "yes",
+"issues": [
+"card-detail-empty-space",
+"rewards-tab-icon-unclear",
+"cooldown-multi-purchase-unclear",
+"no-new-business-alerts"
+],
+"praise": [
+"replaces-paper-cards",
+"progress-to-reward-clear",
+"redeem-history",
+"dark-mode"
+],
+"group": "L"
+},
+{
+"id": "L-03",
+"who": "Rivka Weiss, 39, Haredi mother of seven, part-time bookkeeping at home",
+"role": "customer",
+"tech": 2,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"no-kashrut-info",
+"per-visit-not-per-amount",
+"qualifying-purchase-undefined",
+"few-relevant-businesses"
+],
+"praise": [
+"camera-privacy-statement",
+"clear-business-rules"
+],
+"group": "L"
+},
+{
+"id": "L-04",
+"who": "Galina Petrova, 72, pensioner on basic old-age allowance",
+"role": "customer",
+"tech": 1,
+"sat": 1,
+"use": "no",
+"issues": [
+"hebrew-only",
+"small-low-contrast-text",
+"email-only-signin",
+"disabled-button-unclear",
+"not-for-elderly"
+],
+"praise": [
+"large-pin-keypad",
+"florist-reward-useful"
+],
+"group": "L"
+},
+{
+"id": "L-05",
+"who": "Amir Khoury, 27, line cook at a restaurant on Emek Refaim",
+"role": "customer",
+"tech": 4,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"slow-email-code-signin",
+"staff-handles-customer-phone",
+"no-arabic",
+"onboarding-too-long"
+],
+"praise": [
+"fast-scan-flow",
+"full-card-warning"
+],
+"group": "L"
+},
+{
+"id": "L-06",
+"who": "Tamar Azoulay, 31, single mother, kindergarten assistant",
+"role": "customer",
+"tech": 3,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"too-many-tabs",
+"rewards-duplicated-in-wallet",
+"persistent-banner"
+],
+"praise": [
+"easy-account-deletion",
+"email-used-only-for-login"
+],
+"group": "L"
+},
+{
+"id": "L-07",
+"who": "Shimon Peretz, 64, kiosk owner on Derech Beit Lehem",
+"role": "owner",
+"tech": 2,
+"sat": 2,
+"use": "no",
+"issues": [
+"needs-printer",
+"pin-slows-counter",
+"solo-owner-no-staff",
+"qualifying-purchase-hard-to-define",
+"no-perceived-value"
+],
+"praise": [
+"cooldown-prevents-abuse",
+"free-early-access"
+],
+"group": "L"
+},
+{
+"id": "L-08",
+"who": "Avi Mizrahi, 46, falafel stand owner",
+"role": "owner",
+"tech": 3,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"pin-slows-rush-hour",
+"lockout-hurts-regulars",
+"no-owner-unblock",
+"staff-handles-customer-phone"
+],
+"praise": [
+"owner-sets-own-rules",
+"visible-in-discover",
+"customer-log-export"
+],
+"group": "L"
+},
+{
+"id": "L-09",
+"who": "Esther Biton, 53, co-owner of a small family bakery",
+"role": "owner",
+"tech": 2,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"team-code-shown-once",
+"email-code-login-friction",
+"stats-hard-to-understand",
+"no-cost-summary"
+],
+"praise": [
+"card-live-preview",
+"fair-rule-changes",
+"replaces-paper-cards"
+],
+"group": "L"
+},
+{
+"id": "L-10",
+"who": "Daniel Cohen, 30, barber renting a single chair",
+"role": "owner",
+"tech": 5,
+"sat": 4,
+"use": "yes",
+"issues": [
+"no-booking-or-contact-link",
+"full-card-visual-unclear",
+"no-win-back-messages"
+],
+"praise": [
+"returning-customers-metric",
+"flexible-cooldown",
+"pin-blocks-remote-fraud",
+"modern-design"
+],
+"group": "L"
+},
+{
+"id": "LM-01",
+"who": "Yossi Ben-Haim, 52, Egged bus driver",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "maybe",
+"issues": [
+"email-only-signin",
+"phone-number-rejected-silently",
+"small-legal-text",
+"duplicate-scan-entry-points"
+],
+"praise": [
+"cashier-does-the-pin",
+"clear-progress-line"
+],
+"group": "LM"
+},
+{
+"id": "LM-02",
+"who": "Shira Malka, 29, nursery teacher (gannenet)",
+"role": "customer",
+"tech": 3,
+"sat": 4,
+"use": "yes",
+"issues": [
+"full-card-looks-empty",
+"empty-card-detail-screen",
+"want-more-nearby-businesses"
+],
+"praise": [
+"one-wallet-for-all-cards",
+"ready-to-redeem-badge",
+"redeemed-history-with-date",
+"new-card-auto-starts"
+],
+"group": "LM"
+},
+{
+"id": "LM-03",
+"who": "Eden Cohen, 26, waitress and part-time computer-science student",
+"role": "customer",
+"tech": 5,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"full-card-scan-loses-stamp",
+"dark-mode-bright-cards",
+"demo-scan-button-confusing",
+"no-native-wallet-pass"
+],
+"praise": [
+"clear-business-rules",
+"dark-mode-option",
+"easy-account-deletion"
+],
+"group": "LM"
+},
+{
+"id": "LM-04",
+"who": "Svetlana Kogan, 61, home caregiver (metapelet)",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "maybe",
+"issues": [
+"hebrew-only",
+"jargon-rechisha-mezaka",
+"low-contrast-on-yellow",
+"uneasy-handing-phone-over",
+"cooldown-unclear"
+],
+"praise": [
+"shekel-voucher-rewards",
+"large-pin-pad"
+],
+"group": "LM"
+},
+{
+"id": "LM-05",
+"who": "Rachel Azulay, 41, self-employed house cleaner",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "no",
+"issues": [
+"slow-signup-at-counter",
+"pin-slows-queue",
+"missing-friday-hours",
+"too-many-onboarding-screens"
+],
+"praise": [
+"short-scan-flow",
+"big-clear-buttons"
+],
+"group": "LM"
+},
+{
+"id": "LM-06",
+"who": "Daniel Peretz, 34, warehouse shift worker",
+"role": "customer",
+"tech": 3,
+"sat": 2,
+"use": "no",
+"issues": [
+"no-business-near-me",
+"small-rewards",
+"no-distance-on-discover"
+],
+"praise": [
+"free-and-minimal-data",
+"easy-account-deletion"
+],
+"group": "LM"
+},
+{
+"id": "LM-07",
+"who": "Nissim Dahan, 47, falafel stand owner (one employee) on Derech Beit Lehem",
+"role": "owner",
+"tech": 2,
+"sat": 2,
+"use": "maybe",
+"issues": [
+"pin-typing-in-rush",
+"lockout-blocks-regulars",
+"no-manual-unblock",
+"paper-card-cheaper"
+],
+"praise": [
+"anti-fraud-pin",
+"configurable-cooldown"
+],
+"group": "LM"
+},
+{
+"id": "LM-08",
+"who": "Lior Shemesh, 33, barber (one chair) near Emek Refaim",
+"role": "owner",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"no-customer-messaging",
+"no-self-signup",
+"sparse-data-low-frequency-business"
+],
+"praise": [
+"card-design-with-preview",
+"returning-customers-stats",
+"regulars-heat-map",
+"per-staff-codes"
+],
+"group": "LM"
+},
+{
+"id": "LM-09",
+"who": "Miriam Levi, 56, kiosk (pitsutsiya) owner with her husband",
+"role": "owner",
+"tech": 1,
+"sat": 2,
+"use": "no",
+"issues": [
+"reward-cost-on-thin-margins",
+"email-login-for-owner",
+"needs-printer",
+"csv-not-useful",
+"friday-hours-unclear"
+],
+"praise": [
+"owner-sets-own-reward",
+"changes-only-for-new-cards",
+"single-team-code"
+],
+"group": "LM"
+},
+{
+"id": "LM-10",
+"who": "Hagit Biton, 39, owner of a small espresso bar (one part-time worker)",
+"role": "owner",
+"tech": 3,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"signup-friction-for-new-customers",
+"dashboard-too-many-sections",
+"no-paper-card-migration",
+"unclear-value-of-heat-map"
+],
+"praise": [
+"no-hardware-needed",
+"coffee-card-matches-paper",
+"clear-redeem-screen",
+"quiet-alerts"
+],
+"group": "LM"
+},
+{
+"id": "M-01",
+"who": "Michal Ben-Ami, 41, primary-school teacher",
+"role": "customer",
+"tech": 3,
+"sat": 4,
+"use": "yes",
+"issues": [
+"email-only-signin",
+"phone-in-email-field",
+"empty-card-detail",
+"no-paper-card-migration"
+],
+"praise": [
+"progress-on-card",
+"auto-new-card",
+"redeemed-history"
+],
+"group": "M"
+},
+{
+"id": "M-02",
+"who": "Yossi Mizrahi, 52, clerk at a government office",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "no",
+"issues": [
+"staff-types-on-my-phone",
+"signin-too-heavy",
+"stamp-grid-unclear",
+"cloud-storage-worry"
+],
+"praise": [
+"clear-business-rules"
+],
+"group": "M"
+},
+{
+"id": "M-03",
+"who": "Avi Shapira, 33, backend developer at a mid-size tech company",
+"role": "customer",
+"tech": 5,
+"sat": 4,
+"use": "yes",
+"issues": [
+"empty-card-detail",
+"placeholder-icons",
+"pin-shoulder-surfing",
+"swipe-hint-overlap",
+"no-native-wallet"
+],
+"praise": [
+"closest-reward-first",
+"full-card-handling",
+"dark-mode",
+"polished-copy"
+],
+"group": "M"
+},
+{
+"id": "M-04",
+"who": "Rivka Levi, 29, nurse at a Jerusalem hospital",
+"role": "customer",
+"tech": 3,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"too-many-redeem-steps",
+"double-pin",
+"long-onboarding",
+"code-wait",
+"lost-stamp-unclear"
+],
+"praise": [
+"central-scan-button",
+"redeem-cta-on-full-card"
+],
+"group": "M"
+},
+{
+"id": "M-05",
+"who": "Olga Kravets, 58, bookkeeper at an accounting office",
+"role": "customer",
+"tech": 2,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"points-rate-unclear",
+"stamp-grid-unclear",
+"dense-text",
+"hebrew-only",
+"cooldown-rule-unclear"
+],
+"praise": [
+"concrete-rewards",
+"compare-deals-in-discover",
+"large-pin-digits"
+],
+"group": "M"
+},
+{
+"id": "M-06",
+"who": "Noam Peretz, 36, social worker and father of two",
+"role": "customer",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"suggestions-in-wallet",
+"banner-every-tab",
+"no-remove-card"
+],
+"praise": [
+"one-app-for-all",
+"simple-profile",
+"theme-choice"
+],
+"group": "M"
+},
+{
+"id": "M-07",
+"who": "Shlomo Azulay, 61, owner of a family bakery on Derech Beit Lehem",
+"role": "owner",
+"tech": 1,
+"sat": 2,
+"use": "no",
+"issues": [
+"slow-at-rush-hour",
+"staff-types-on-customer-phone",
+"email-login-for-owner",
+"pin-shown-once",
+"code-terms-confusing"
+],
+"praise": [
+"no-hardware-needed",
+"cooldown-rule"
+],
+"group": "M"
+},
+{
+"id": "M-08",
+"who": "Tamar Golan, 38, owner of a café on Emek Refaim with 5 staff",
+"role": "owner",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"changes-new-cards-only",
+"email-only-signin",
+"active-customers-definition",
+"no-customer-messaging"
+],
+"praise": [
+"per-staff-pins",
+"audit-log-csv",
+"returning-customers-stats",
+"lockout-alerts"
+],
+"group": "M"
+},
+{
+"id": "M-09",
+"who": "Eli Hadad, 45, barber with one chair and an assistant",
+"role": "owner",
+"tech": 3,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"low-frequency-business",
+"pin-with-busy-hands",
+"lockout-whole-day",
+"no-booking-link"
+],
+"praise": [
+"flexible-program",
+"cooldown-options",
+"single-team-code"
+],
+"group": "M"
+},
+{
+"id": "M-10",
+"who": "Hila Shalev, 34, owner of a flower shop on Emek Refaim",
+"role": "owner",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"hebrew-only",
+"email-only-signin",
+"inconsistent-change-rules",
+"no-publish-confirmation"
+],
+"praise": [
+"card-designer-live-preview",
+"printable-counter-card",
+"brand-look"
+],
+"group": "M"
+},
+{
+"id": "UM-01",
+"who": "Daniel Mizrahi, 38, senior backend engineer",
+"role": "customer",
+"tech": 5,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"pin-shoulder-surfing",
+"card-detail-empty-space",
+"wallet-stack-unclear-tap",
+"no-native-wallet-pass",
+"few-real-businesses"
+],
+"praise": [
+"staff-pin-anti-fraud",
+"closest-reward-first",
+"passwordless-email-code"
+],
+"group": "UM"
+},
+{
+"id": "UM-02",
+"who": "Dr. Michal Ben-Ami, 44, family physician",
+"role": "customer",
+"tech": 3,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"email-only-signin",
+"phone-input-weak-error",
+"email-code-spam-friction",
+"too-many-steps-at-counter",
+"pin-count-wording-unclear"
+],
+"praise": [
+"skippable-onboarding",
+"redemption-history-dated"
+],
+"group": "UM"
+},
+{
+"id": "UM-03",
+"who": "Adv. Yossi Halevi, 56, real-estate lawyer",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "no",
+"issues": [
+"cloud-provider-unnamed",
+"demo-banner-everywhere",
+"incomplete-hours",
+"no-kashrut-info",
+"prefers-paper"
+],
+"praise": [
+"clear-business-rules",
+"honest-account-deletion"
+],
+"group": "UM"
+},
+{
+"id": "UM-04",
+"who": "Noa Peretz-Levin, 31, product manager",
+"role": "customer",
+"tech": 5,
+"sat": 4,
+"use": "yes",
+"issues": [
+"rewards-tab-no-redeem-button",
+"success-icon-blank",
+"rewards-tab-icon-generic",
+"empty-slot-check-ambiguous",
+"wants-near-reward-nudge"
+],
+"praise": [
+"clear-redeem-loop",
+"strong-visual-brand",
+"good-dark-mode",
+"reward-equation-clear"
+],
+"group": "UM"
+},
+{
+"id": "UM-05",
+"who": "Rami Khoury, 42, hospital pharmacy manager",
+"role": "customer",
+"tech": 4,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"points-earn-rate-missing",
+"hebrew-only",
+"points-progress-unclear"
+],
+"praise": [
+"reward-equation-clear",
+"cooldown-shown-upfront"
+],
+"group": "UM"
+},
+{
+"id": "UM-06",
+"who": "Tamar Shapira, 35, architect",
+"role": "customer",
+"tech": 3,
+"sat": 2,
+"use": "no",
+"issues": [
+"upsell-in-wallet",
+"no-real-businesses",
+"yet-another-app"
+],
+"praise": [
+"one-wallet-pitch",
+"minimal-profile"
+],
+"group": "UM"
+},
+{
+"id": "UM-07",
+"who": "Avi Cohen, 52, owner of a bakery with two branches",
+"role": "owner",
+"tech": 2,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"pin-slows-rush",
+"lockout-hurts-regulars",
+"no-owner-unblock",
+"pin-sharing-across-shifts",
+"no-pos-integration"
+],
+"praise": [
+"multi-branch-qr",
+"per-staff-pins"
+],
+"group": "UM"
+},
+{
+"id": "UM-08",
+"who": "Liat Amsalem, 40, owner of a fashion boutique with two branches",
+"role": "owner",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"points-not-per-shekel",
+"no-customer-identity",
+"no-customer-messaging",
+"mixed-change-rules"
+],
+"praise": [
+"card-customization",
+"live-card-preview",
+"returning-customers-metric"
+],
+"group": "UM"
+},
+{
+"id": "UM-09",
+"who": "Eitan Rosenberg, 60, chef-owner of a café-restaurant",
+"role": "owner",
+"tech": 3,
+"sat": 2,
+"use": "no",
+"issues": [
+"no-price-shown",
+"closed-owner-signup",
+"startup-longevity-risk",
+"regulars-definition-unclear",
+"empty-discover-for-customers"
+],
+"praise": [
+"audit-log-with-approver",
+"csv-export"
+],
+"group": "UM"
+},
+{
+"id": "UM-10",
+"who": "Shira Golan, 34, owner of a florist and event-flowers studio",
+"role": "owner",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"business-page-no-contact",
+"cooldown-default-mismatch",
+"no-order-link"
+],
+"praise": [
+"fast-3-step-setup",
+"printable-counter-card",
+"clear-reward-equation"
+],
+"group": "UM"
+},
+{
+"id": "W-01",
+"who": "Yoav Ben-Ami, 44, tech founder (post-exit, now angel investor)",
+"role": "customer",
+"tech": 5,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"redeem-done-screen-empty",
+"rewards-tab-placeholder-icon",
+"phone-number-not-accepted",
+"no-native-wallet-pass"
+],
+"praise": [
+"wallet-stack-design",
+"honest-privacy-copy"
+],
+"group": "W"
+},
+{
+"id": "W-02",
+"who": "Ruth Feldman, 71, retired barrister (olah from London)",
+"role": "customer",
+"tech": 2,
+"sat": 2,
+"use": "maybe",
+"issues": [
+"hebrew-only",
+"dense-legal-footer",
+"staff-handles-my-phone",
+"scan-screen-two-buttons",
+"no-text-size-option"
+],
+"praise": [
+"large-pin-pad",
+"clear-business-rules"
+],
+"group": "W"
+},
+{
+"id": "W-03",
+"who": "Dafna Levinson, 52, senior partner at a commercial law firm",
+"role": "customer",
+"tech": 3,
+"sat": 2,
+"use": "no",
+"issues": [
+"too-many-signin-steps",
+"pin-handoff-slows-queue",
+"email-code-friction"
+],
+"praise": [
+"skip-onboarding",
+"clear-full-card-message"
+],
+"group": "W"
+},
+{
+"id": "W-04",
+"who": "Avi Schreiber, 38, real-estate investor",
+"role": "customer",
+"tech": 4,
+"sat": 4,
+"use": "yes",
+"issues": [
+"no-friday-hours",
+"no-kashrut-info",
+"no-family-sharing",
+"pin-count-ambiguous"
+],
+"praise": [
+"easy-add-business",
+"points-progress-clear",
+"reward-history"
+],
+"group": "W"
+},
+{
+"id": "W-05",
+"who": "Michal Oren, 33, senior product designer at a multinational",
+"role": "customer",
+"tech": 5,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"full-card-looks-empty",
+"card-detail-layout-overlap",
+"progress-bar-direction",
+"demo-banner-every-tab"
+],
+"praise": [
+"dark-mode-consistent",
+"card-detail-stamps"
+],
+"group": "W"
+},
+{
+"id": "W-06",
+"who": "Shmuel Katz, 66, retired accountant and private investor",
+"role": "customer",
+"tech": 3,
+"sat": 4,
+"use": "yes",
+"issues": [
+"points-rate-not-shown",
+"qualifying-purchase-vague",
+"no-savings-total"
+],
+"praise": [
+"clear-reward-value",
+"honest-cooldown-rule",
+"reward-history"
+],
+"group": "W"
+},
+{
+"id": "W-07",
+"who": "Nir Shalev, 47, owner of a chain of three cafés (Emek Refaim, Baka, Arnona)",
+"role": "owner",
+"tech": 4,
+"sat": 3,
+"use": "maybe",
+"issues": [
+"pin-handoff-slows-queue",
+"lockout-punishes-customer",
+"no-per-branch-stats",
+"no-pos-integration"
+],
+"praise": [
+"multi-register-qr",
+"per-staff-audit-log"
+],
+"group": "W"
+},
+{
+"id": "W-08",
+"who": "Orly Benayoun, 55, owner of an upscale chef restaurant on Emek Refaim",
+"role": "owner",
+"tech": 3,
+"sat": 2,
+"use": "no",
+"issues": [
+"not-for-table-service",
+"pin-at-table-awkward",
+"brand-fit-casual",
+"no-reservation-integration"
+],
+"praise": [
+"card-design-customization",
+"transparent-rules"
+],
+"group": "W"
+},
+{
+"id": "W-09",
+"who": "Daniel Mizrahi, 36, owner of a gourmet wine and deli shop near the German Colony",
+"role": "owner",
+"tech": 5,
+"sat": 4,
+"use": "yes",
+"issues": [
+"flat-points-per-purchase",
+"no-customer-messaging",
+"customer-identity-unclear"
+],
+"praise": [
+"returning-customer-insights",
+"csv-export",
+"program-change-safe"
+],
+"group": "W"
+},
+{
+"id": "W-10",
+"who": "Esther Gabay, 63, owner of a high-end patisserie in the German Colony",
+"role": "owner",
+"tech": 2,
+"sat": 2,
+"use": "maybe",
+"issues": [
+"staff-handles-customer-phone",
+"pin-shown-once",
+"alerts-jargon",
+"no-paper-card-fallback"
+],
+"praise": [
+"simple-setup",
+"clear-full-card-message"
+],
+"group": "W"
+}
+]
