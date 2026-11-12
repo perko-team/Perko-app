@@ -167,7 +167,7 @@ function Row({ label, note, onPress }: { label: string; note?: string; onPress?:
     >
       <View>
         <Txt kind="label" size={16}>{label}</Txt>
-        {note ? <Txt size={13} color={t.textMuted}>{note}</Txt> : null}
+        {note ? <Txt size={14} color={t.textMuted}>{note}</Txt> : null}
       </View>
       {onPress ? <ChevronIcon size={18} color={t.textMuted} /> : null}
     </Pressable>

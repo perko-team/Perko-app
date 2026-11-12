@@ -59,7 +59,7 @@ export const lightPalette: Palette = {
   track: colors.pale,
   text: colors.ink,
   textMuted: colors.muted,
-  placeholder: 'rgba(48, 54, 38, 0.45)',
+  placeholder: 'rgba(48, 54, 38, 0.75)', // AA (4.5:1) on surface and surfaceAlt
   accent: colors.ink,
   onAccent: colors.lime,
   accentPressed: colors.inkRaised,
@@ -80,7 +80,7 @@ export const darkPalette: Palette = {
   track: '#2A2E24',
   text: colors.paper,
   textMuted: colors.slateOnInk,
-  placeholder: 'rgba(185, 188, 176, 0.6)',
+  placeholder: 'rgba(185, 188, 176, 0.85)', // AA (4.5:1) on surface and surfaceAlt
   accent: colors.lime, // lime with ink text on ink surfaces, as on the website
   onAccent: colors.ink,
   accentPressed: colors.lime2,

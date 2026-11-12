@@ -114,7 +114,7 @@ function ReadyDot() {
   const { t } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
-      <Txt size={11} weight={700} color={t.onAccent}>הטבה מוכנה</Txt>
+      <Txt size={12} weight={700} color={t.onAccent}>הטבה מוכנה</Txt>
     </View>
   );
 }

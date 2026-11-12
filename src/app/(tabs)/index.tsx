@@ -13,14 +13,6 @@ import { useSession } from '../../lib/session';
 import type { Business, Card } from '../../lib/types';
 import { colors, gutter, radius, TAB_CLEARANCE, touch } from '../../theme';
 
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'בוקר טוב';
-  if (h >= 12 && h < 17) return 'צהריים טובים';
-  if (h >= 17 && h < 22) return 'ערב טוב';
-  return 'לילה טוב';
-}
-
 export default function Wallet() {
   const { profile } = useSession();
   const screenReader = useScreenReader();
@@ -38,7 +30,7 @@ export default function Wallet() {
 
   const heading = (
     <>
-      <Heading over={profile?.name ? `${greeting()}, ${profile.name}` : greeting()} title="הכרטיסים שלי" />
+      <Heading over={profile?.name ? `שלום, ${profile.name}` : 'שלום'} title="הכרטיסים שלי" />
       <DemoBanner />
     </>
   );
@@ -93,7 +85,7 @@ function Chip({ business }: { business: Business }) {
       <Avatar initial={business.initial} tone={business.tone} size={36} />
       <View style={{ flex: 1 }}>
         <Txt kind="label" size={14} weight={700} numberOfLines={1}>{business.name}</Txt>
-        <Txt size={13} color={t.textMuted} numberOfLines={1}>{business.kind}</Txt>
+        <Txt size={14} color={t.textMuted} numberOfLines={1}>{business.kind}</Txt>
       </View>
     </Pressable>
   );

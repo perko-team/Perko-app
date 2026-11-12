@@ -263,7 +263,7 @@ function Pager({ index, count }: { index: number; count: number }) {
           <View key={k} style={{ width: k === index ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: k === index ? t.accent : t.surfaceStrong }} />
         ))}
       </View>
-      <Txt size={13} color={t.textMuted}>החלקה לצד למעבר בין כרטיסים</Txt>
+      <Txt size={14} color={t.textMuted}>החלקה לצד למעבר בין כרטיסים</Txt>
     </View>
   );
 }

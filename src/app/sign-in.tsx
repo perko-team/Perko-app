@@ -206,8 +206,7 @@ export default function SignIn() {
         </View>
 
         <Txt kind="small" color={t.onHeroMuted} style={{ marginTop: 24 }}>
-          כתובת המייל משמשת רק לכניסה לחשבון ולשליחת קוד חד-פעמי, ונשמרת אצל ספק הענן שלנו. בכניסה אתם מאשרים את{' '}
-          <LegalLink label="תנאי השימוש" url={TERMS_URL} /> ואת <LegalLink label="מדיניות הפרטיות" url={PRIVACY_POLICY_URL} />. Perko בשלב גישה מוקדמת.
+          בכניסה מאשרים את <LegalLink label="תנאי השימוש" url={TERMS_URL} /> ואת <LegalLink label="מדיניות הפרטיות" url={PRIVACY_POLICY_URL} />
         </Txt>
       </Screen>
     </KeyboardAvoidingView>

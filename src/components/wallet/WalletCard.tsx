@@ -96,7 +96,7 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
           {ready ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: face.accentBg, borderRadius: 999, paddingStart: 8, paddingEnd: 10, paddingVertical: 5 }}>
               <CheckIcon size={14} color={face.accentFg} />
-              <Txt size={13} weight={800} color={face.accentFg}>{FULL_TITLE}</Txt>
+              <Txt size={14} weight={800} color={face.accentFg}>{FULL_TITLE}</Txt>
             </View>
           ) : (
             <Count card={card} fg={face.fg} sub={face.sub} />
@@ -120,7 +120,7 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
               </Txt>
               {card.business.isSample ? (
                 <View style={{ alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, backgroundColor: face.stamps === 'dark' || face.stamps === 'photo' ? colors.paperOnInk16 : colors.inkOnLime14 }}>
-                  <Txt size={11} weight={600} color={face.fg}>לדוגמה</Txt>
+                  <Txt size={12} weight={600} color={face.fg}>לדוגמה</Txt>
                 </View>
               ) : null}
             </View>
@@ -135,7 +135,7 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
 function Count({ card, fg, sub }: { card: Card; fg: string; sub: string }) {
   if (card.program.type === 'points') {
     return (
-      <Txt size={13} weight={600} color={sub}>
+      <Txt size={14} weight={600} color={sub}>
         <Txt size={22} weight={800} color={fg} style={{ letterSpacing: -0.7 }}>{card.current}</Txt> נק׳
       </Txt>
     );
