@@ -1,7 +1,7 @@
 // Wallet card views shared by the wallet, rewards and business screens.
 import * as WebBrowser from 'expo-web-browser';
 import { Pressable, View } from 'react-native';
-import { durationLabel, progress, remaining, remainingLabel } from '../../supabase/functions/_shared/loyalty.ts';
+import { progress, remaining, remainingLabel, ruleFacts } from '../../supabase/functions/_shared/loyalty.ts';
 import type { Business, Card } from '../lib/types';
 import { colors, radius, touch } from '../theme';
 import { ChevronIcon } from './Icons';
@@ -110,15 +110,12 @@ function ReadyDot() {
 /** The business's rules (website Solution.astro "הכללים של העסק הזה"). */
 export function RulesBox({ program }: { program: NonNullable<Business['program']> }) {
   const { t } = useTheme();
-  const unit = program.type === 'points' ? 'נק׳' : 'חותמות';
+  const unit = program.type === 'points' ? 'נקודות' : 'חותמות';
   const rows: [string, string][] = [
-    ['צבירה', program.rule],
-    ['הטבה', `${program.reward} אחרי ${program.goal} ${unit}`],
-    ['מימוש', program.redeemRule],
+    ...ruleFacts(program).map((f): [string, string] => [f.label, f.value]),
+    ['ההטבה', `${program.reward} אחרי ${program.goal} ${unit}`],
+    ['איפה מקבלים', program.redeemRule],
   ];
-  if (program.cooldownMinutes > 0) {
-    rows.push(['תדירות', `צבירה אחת בכל ${durationLabel(program.cooldownMinutes)}`]);
-  }
   return (
     <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 14 }}>
       <Txt kind="label" weight={800} style={{ marginBottom: 6 }} accessibilityRole="header">הכללים של העסק הזה</Txt>
@@ -128,7 +125,6 @@ export function RulesBox({ program }: { program: NonNullable<Business['program']
           <Txt size={15} weight={600} style={{ flexShrink: 1 }}>{v}</Txt>
         </View>
       ))}
-      <Txt kind="small" color={t.textMuted} style={{ marginTop: 6 }}>צוברים אחרי רכישה מזכה, לפי הכללים שהעסק קבע.</Txt>
     </View>
   );
 }

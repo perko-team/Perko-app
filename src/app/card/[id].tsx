@@ -46,7 +46,7 @@ export default function CardDetail() {
             </Txt>
             {card.business.isSample ? <View style={{ marginTop: 10 }}><Tag label="עסק לדוגמה" onLime /></View> : null}
             {card.status === 'complete' ? (
-              <Button label="מימוש ההטבה" onPress={() => router.push({ pathname: '/redeem/[id]', params: { id: card.id } })} style={{ marginTop: 18 }} hint="פותח את מסך ההטבה להצגה בקופה" />
+              <Button label="לקבל את ההטבה" onPress={() => router.push({ pathname: '/redeem/[id]', params: { id: card.id } })} style={{ marginTop: 18 }} hint="פותח את מסך ההטבה להצגה בקופה" />
             ) : null}
           </View>
           </OnBrand>

@@ -96,7 +96,7 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
           {ready ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: face.accentBg, borderRadius: 999, paddingStart: 8, paddingEnd: 10, paddingVertical: 5 }}>
               <CheckIcon size={14} color={face.accentFg} />
-              <Txt size={13} weight={800} color={face.accentFg}>מוכנה למימוש</Txt>
+              <Txt size={13} weight={800} color={face.accentFg}>ההטבה מוכנה</Txt>
             </View>
           ) : (
             <Count card={card} fg={face.fg} sub={face.sub} />

@@ -209,6 +209,29 @@ function fillRedeemProblem(
   return null;
 }
 
+/**
+ * The card's rules as three plain facts, for the business page and the card screen: what counts as a purchase,
+ * how often one can collect, and how much a purchase is worth. Customer copy never says "צבירה" or "מימוש".
+ */
+function ruleFacts(p: { type: ProgramType; step: number; rule: string; cooldownMinutes: number }): { label: string; value: string }[] {
+  const what = p.rule.trim() || 'כל קנייה בקופה';
+  const worth = p.type === 'points'
+    ? `${p.step} נקודות על כל קנייה`
+    : p.step === 1 ? 'חותמת אחת על כל קנייה' : `${p.step} חותמות על כל קנייה`;
+  const once = p.type === 'points' ? 'נקודות פעם אחת' : 'חותמת אחת';
+  const often = p.cooldownMinutes > 0 ? `אפשר לאסוף ${once} בכל ${durationLabel(p.cooldownMinutes)}` : 'אין הגבלה: כל קנייה נספרת';
+  return [
+    { label: 'מה נחשב קנייה', value: what },
+    { label: 'כל כמה זמן', value: often },
+    { label: 'כמה מקבלים', value: worth },
+  ];
+}
+
+/** A scan of a card that is already full. */
+function fullCardMessage(reward: string): string {
+  return `הקנייה הזו לא נספרה כי הכרטיס מלא. מקבלים את ההטבה (${reward}) ומתחילים כרטיס חדש`;
+}
+
 // ---- _shared/token.ts
 // Signed counter QR tokens and staff PIN hashes.
 // Uses only WebCrypto, available in Deno (Edge Functions) and Node 20+ (admin script, tests).

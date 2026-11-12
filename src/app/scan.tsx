@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { cooldownMessage, lockedMessage, remaining, remainingLabel, wrongPinMessage } from '../../supabase/functions/_shared/loyalty.ts';
+import { cooldownMessage, fullCardMessage, lockedMessage, remaining, remainingLabel, wrongPinMessage } from '../../supabase/functions/_shared/loyalty.ts';
 import type { Business, PendingCollect } from '../lib/types';
 import { NetworkError } from '../lib/backend';
 import { CloseIcon } from '../components/Icons';
@@ -346,7 +346,7 @@ function content(o: CollectOutcome): Content {
         title: 'הכרטיס כבר מלא',
         sub: `${o.businessName} · ${o.programName}`,
         card: { type: o.type, goal: o.goal, current: o.current },
-        foot: `קודם מממשים את ההטבה (${o.reward}), ואז מתחיל כרטיס חדש.`,
+        foot: `${fullCardMessage(o.reward)}.`,
         primary: 'redeem',
       };
     case 'cooldown':
@@ -355,7 +355,7 @@ function content(o: CollectOutcome): Content {
     case 'not_perko':
       return { title: 'הקוד לא מוכר', sub: 'זה לא קוד Perko פעיל. סורקים את הקוד שבקופה של עסק משתתף.', primary: 'again' };
     case 'inactive':
-      return { title: 'הקוד לא פעיל', sub: 'הקוד הזה הושבת, או שהעסק לא צובר כרגע. אפשר לשאול את הצוות בקופה.', primary: 'again' };
+      return { title: 'הקוד לא פעיל', sub: 'הקוד הזה הושבת, או שהעסק לא נותן חותמות כרגע. אפשר לשאול את הצוות בקופה.', primary: 'again' };
     case 'locked':
       return { title: 'הקוד ננעל להיום', sub: `${o.businessName}. ${lockedMessage()}.`, primary: 'done' };
     case 'rate_limited':

@@ -230,7 +230,7 @@ export function WalletStack({ cards, header, footer, onDetails, onScan, onRedeem
             {current ? (
               <>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {current.status === 'complete' ? <Button label="מימוש ההטבה" onPress={() => onRedeem(current)} small /> : null}
+                  {current.status === 'complete' ? <Button label="לקבל את ההטבה" onPress={() => onRedeem(current)} small /> : null}
                   <Button label="סריקה בקופה" onPress={onScan} small variant={current.status === 'complete' ? 'quiet' : 'ink'} />
                   <Button label="פרטי הכרטיס" onPress={() => onDetails(current)} small variant="quiet" />
                 </View>

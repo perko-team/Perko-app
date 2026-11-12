@@ -39,9 +39,9 @@ export default function Redeem() {
       else if (r.status === 'locked') {
         setLocked(true);
         setPinError(`${lockedMessage()}.`);
-      } else setPinError('ההטבה כבר מומשה או שהכרטיס לא מלא.');
+      } else setPinError('ההטבה כבר ניתנה, או שהכרטיס עוד לא מלא.');
     } catch (e) {
-      setPinError(e instanceof NetworkError ? 'אין חיבור לאינטרנט. ההטבה לא מומשה, מנסים שוב.' : 'משהו השתבש. ההטבה לא מומשה.');
+      setPinError(e instanceof NetworkError ? 'אין חיבור לאינטרנט. ההטבה לא ניתנה, מנסים שוב.' : 'משהו השתבש. ההטבה לא ניתנה.');
     } finally {
       setBusy(false);
       setResetKey((k) => k + 1);
@@ -75,7 +75,7 @@ export default function Redeem() {
           {card.status === 'complete' ? (
             <View style={{ marginTop: 22, gap: 12 }}>
               <Txt kind="title" size={22} align="center">מציגים לקופאי/ת</Txt>
-              <Txt kind="label" color={t.textMuted} align="center">הצוות מקליד את הקוד שלו כדי לממש. אחרי המימוש מתחיל כרטיס חדש.</Txt>
+              <Txt kind="label" color={t.textMuted} align="center">הצוות מקליד את הקוד שלו, ואתם מקבלים את ההטבה. אחר כך מתחיל כרטיס חדש.</Txt>
               <PinPad onComplete={confirm} busy={busy} error={pinError} disabled={locked} resetKey={resetKey} />
             </View>
           ) : (
