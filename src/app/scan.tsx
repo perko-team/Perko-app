@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { cooldownMessage, fullCardMessage, lockedMessage, remaining, remainingLabel, wrongPinMessage } from '../../supabase/functions/_shared/loyalty.ts';
+import { cooldownMessage, FULL_TITLE, fullCardMessage, lockedMessage, remaining, remainingLabel, wrongPinMessage } from '../../supabase/functions/_shared/loyalty.ts';
 import type { Business, PendingCollect } from '../lib/types';
 import { NetworkError } from '../lib/backend';
 import { CloseIcon } from '../components/Icons';
@@ -334,10 +334,10 @@ function content(o: CollectOutcome): Content {
       const missing = remaining({ goal: o.goal }, o.current);
       const title = o.type === 'points' ? `נוספו ${o.added} נקודות` : o.added === 1 ? 'נוספה חותמת' : `נוספו ${o.added} חותמות`;
       return {
-        title: o.completed ? 'הכרטיס מלא' : title,
+        title: o.completed ? FULL_TITLE : title,
         sub: `${o.businessName} · ${o.programName}`,
         card: { type: o.type, goal: o.goal, current: o.current },
-        foot: o.completed ? `ההטבה מוכנה: ${o.reward}. מציגים אותה לצוות בקופה.` : `${o.current} מתוך ${o.goal}. ${remainingLabel(o.type, missing)}: ${o.reward}.`,
+        foot: o.completed ? (o.confirmation ? `ההטבה: ${o.reward}.` : `ההטבה מוכנה: ${o.reward}. מציגים אותה לצוות בקופה.`) : `${o.current} מתוך ${o.goal}. ${remainingLabel(o.type, missing)}: ${o.reward}.`,
         primary: o.completed ? 'redeem' : 'done',
       };
     }

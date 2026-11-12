@@ -27,7 +27,12 @@ export default function Rewards() {
           {data.ready.length ? (
             <View style={{ gap: 10 }}>
               {data.ready.map((c) => (
-                <HeroCard key={c.id} card={c} onPress={() => router.push({ pathname: '/redeem/[id]', params: { id: c.id } })} />
+                <HeroCard
+                  key={c.id}
+                  card={c}
+                  onPress={() => router.push({ pathname: '/card/[id]', params: { id: c.id } })}
+                  action={{ label: 'לקבל את ההטבה', onPress: () => router.push({ pathname: '/redeem/[id]', params: { id: c.id } }) }}
+                />
               ))}
             </View>
           ) : (

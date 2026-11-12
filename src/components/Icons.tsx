@@ -12,8 +12,15 @@ export const PinIcon = ({ size = 24, color = colors.ink }: P) => (
     <Path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill={color} />
   </Svg>
 );
+/** A wrapped gift: lid and box split by the ribbon, a bow on top. */
 export const GiftIcon = ({ size = 24, color = colors.ink }: P) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={12} r={9} fill={color} /></Svg>
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Rect x={3} y={8} width={8} height={4} rx={1} fill={color} />
+    <Rect x={13} y={8} width={8} height={4} rx={1} fill={color} />
+    <Rect x={4.5} y={13.5} width={6.5} height={7.5} rx={1.2} fill={color} />
+    <Rect x={13} y={13.5} width={6.5} height={7.5} rx={1.2} fill={color} />
+    <Path d="M11.6 7.4C10.4 4.6 7.6 3.3 6.6 4.8c-.9 1.4.9 2.7 5 2.6zM12.4 7.4c1.2-2.8 4-4.1 5-2.6.9 1.4-.9 2.7-5 2.6z" fill={color} />
+  </Svg>
 );
 export const UserIcon = ({ size = 24, color = colors.ink }: P) => (
   <Svg width={size} height={size} viewBox="0 0 24 24">

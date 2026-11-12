@@ -225,3 +225,6 @@ export function ruleFacts(p: { type: ProgramType; step: number; rule: string; co
 export function fullCardMessage(reward: string): string {
   return `הקנייה הזו לא נספרה כי הכרטיס מלא. מקבלים את ההטבה (${reward}) ומתחילים כרטיס חדש`;
 }
+
+/** The title of a full card, everywhere it shows. */
+export const FULL_TITLE = 'מלא! ההטבה מחכה';

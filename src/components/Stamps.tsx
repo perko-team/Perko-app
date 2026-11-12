@@ -2,12 +2,13 @@
 import { useEffect, useState } from 'react';
 import { Animated, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { FULL_TITLE } from '../../supabase/functions/_shared/loyalty.ts';
 import { STAMP_GLYPHS, stampColors, type StampShape, type StampSurface } from '../cardLook';
 import { useTheme } from '../lib/appearance';
 import { useReduceMotion } from '../lib/hooks';
 import type { ProgramType } from '../lib/types';
 import { colors, motion } from '../theme';
-import { CheckIcon } from './Icons';
+import { CheckIcon, GiftIcon } from './Icons';
 import { useOnBrand } from './surface';
 
 export function columnsFor(goal: number): number {
@@ -46,7 +47,7 @@ export function Stamps({ goal, current, onLime, surface, columns, gap: gapProp, 
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`${current} מתוך ${goal} חותמות`}
+      accessibilityLabel={current >= goal ? `${goal} מתוך ${goal} חותמות. ${FULL_TITLE}` : `${current} מתוך ${goal} חותמות`}
       style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -gap / 2, rowGap: gap }}
     >
       {Array.from({ length: goal }, (_, i) => (
@@ -93,15 +94,20 @@ function Stamp({ on, reward, surface, land, shape }: { on: boolean; reward: bool
             alignItems: 'center', justifyContent: 'center', opacity: v, transform: [{ scale }],
           }}
         >
-          {/* The glyph rides inside the filled disc, so it lands with it and is never painted under it. */}
-          {glyph ? <Glyph d={glyph} color={onFilled} /> : null}
+          {/* The glyph rides inside the filled disc, so it lands with it and is never painted under it. A plain disc
+              gets a small check: a collected stamp reads as "נאסף", never as an empty dark circle. */}
+          {glyph ? <Glyph d={glyph} color={onFilled} /> : !reward ? (
+            <View style={{ width: '46%', height: '46%' }}>
+              <CheckIcon size="100%" color={onFilled} />
+            </View>
+          ) : null}
         </Animated.View>
       ) : glyph ? (
         <Glyph d={glyph} color={onEmpty} />
       ) : null}
       {reward ? (
         <View style={{ width: '55%', height: '55%' }}>
-          <CheckIcon size="100%" color={dark ? (on ? onFilled : colors.paper) : on ? colors.lime : onLime ? colors.ink : colors.muted} />
+          <GiftIcon size="100%" color={dark ? (on ? onFilled : colors.paper) : on ? colors.lime : onLime ? colors.ink : colors.muted} />
         </View>
       ) : null}
     </View>

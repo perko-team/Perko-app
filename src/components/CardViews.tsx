@@ -1,7 +1,7 @@
 // Wallet card views shared by the wallet, rewards and business screens.
 import * as WebBrowser from 'expo-web-browser';
 import { Pressable, View } from 'react-native';
-import { progress, remaining, remainingLabel, ruleFacts } from '../../supabase/functions/_shared/loyalty.ts';
+import { FULL_TITLE, progress, remaining, remainingLabel, ruleFacts } from '../../supabase/functions/_shared/loyalty.ts';
 import type { Business, Card } from '../lib/types';
 import { colors, radius, touch } from '../theme';
 import { ChevronIcon } from './Icons';
@@ -9,7 +9,7 @@ import { Bar, Progress } from './Stamps';
 import { Txt } from './Txt';
 import { useTheme } from '../lib/appearance';
 import { OnBrand } from './surface';
-import { Avatar, Tag } from './ui';
+import { Avatar, Button, Tag } from './ui';
 
 /** "10 חותמות = קפה הפוך עלינו". */
 export function programLine(b: Pick<Business, 'program'>): string {
@@ -25,14 +25,17 @@ export function countLabel(card: Pick<Card, 'current' | 'program'>): string {
 
 export function cardA11y(card: Card): string {
   const unit = card.program.type === 'points' ? 'נקודות' : 'חותמות';
-  const ready = card.status === 'complete' ? 'ההטבה מוכנה' : remainingLabel(card.program.type, remaining(card.program, card.current));
+  const ready = card.status === 'complete' ? FULL_TITLE : remainingLabel(card.program.type, remaining(card.program, card.current));
   return `${card.business.name}, ${card.program.name}. ${card.current} מתוך ${card.program.goal} ${unit}. ${ready}.`;
 }
 
-/** The lime card (website .ui-card--lime). */
-export function HeroCard({ card, onPress }: { card: Card; onPress: () => void }) {
+/**
+ * The lime card (website .ui-card--lime). action: a visible button right under it, e.g. "לקבל את ההטבה" on the
+ * rewards tab. It sits outside the card's pressable so TalkBack reaches it as its own button.
+ */
+export function HeroCard({ card, onPress, action }: { card: Card; onPress: () => void; action?: { label: string; onPress: () => void } }) {
   const ready = card.status === 'complete';
-  return (
+  const body = (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={cardA11y(card)} accessibilityHint="פותח את פרטי הכרטיס">
       {({ pressed }) => (
         <OnBrand>
@@ -48,7 +51,7 @@ export function HeroCard({ card, onPress }: { card: Card; onPress: () => void })
           <Progress type={card.program.type} goal={card.program.goal} current={card.current} onLime animate />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, gap: 8 }}>
             <Txt kind="label" weight={700} style={{ flex: 1 }}>
-              {ready ? `ההטבה מוכנה: ${card.program.reward}` : remainingLabel(card.program.type, remaining(card.program, card.current))}
+              {ready ? `${FULL_TITLE}: ${card.program.reward}` : remainingLabel(card.program.type, remaining(card.program, card.current))}
             </Txt>
             {card.business.isSample ? <Tag label="לדוגמה" onLime /> : null}
           </View>
@@ -56,6 +59,13 @@ export function HeroCard({ card, onPress }: { card: Card; onPress: () => void })
         </OnBrand>
       )}
     </Pressable>
+  );
+  if (!action) return body;
+  return (
+    <View style={{ gap: 8 }}>
+      {body}
+      <Button label={action.label} onPress={action.onPress} hint={`${card.business.name}: ${card.program.reward}`} />
+    </View>
   );
 }
 

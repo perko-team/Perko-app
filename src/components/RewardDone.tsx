@@ -3,7 +3,6 @@
 // glance at it and hand the phone back.
 import { router } from 'expo-router';
 import { Image, View } from 'react-native';
-import { cardFace } from '../cardLook';
 import { useTheme } from '../lib/appearance';
 import type { Business } from '../lib/types';
 import { CheckIcon } from './Icons';
@@ -12,19 +11,21 @@ import { Button, Screen } from './ui';
 
 export function RewardDone({ reward, businessName, business }: { reward: string; businessName: string; business?: Business | null }) {
   const { t } = useTheme();
-  const face = business ? cardFace(business.look, business.id) : null;
   return (
     <Screen bg={t.hero} contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 14 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }} accessible accessibilityLabel={businessName}>
+      {/* The business's logo or initial, with a check badge on its corner. Accent colours, so it reads on the hero. */}
+      <View style={{ width: 80, height: 80 }} accessible accessibilityLabel={businessName}>
         {business?.look.logoUrl ? (
-          <Image source={{ uri: business.look.logoUrl }} accessible={false} style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: face?.avatarBg }} />
+          <Image source={{ uri: business.look.logoUrl }} accessible={false} style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: t.accent }} />
         ) : (
-          <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: face?.avatarBg ?? t.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt size={28} weight={800} color={face?.avatarFg ?? t.onAccent}>{business?.initial ?? businessName.slice(0, 1)}</Txt>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt size={36} weight={800} color={t.onAccent}>{business?.initial ?? businessName.slice(0, 1)}</Txt>
           </View>
         )}
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center', marginStart: -26, marginTop: 34 }}>
-          <CheckIcon size={22} color={t.onAccent} />
+        <View style={{ position: 'absolute', bottom: -6, end: -6, width: 34, height: 34, borderRadius: 17, backgroundColor: t.hero, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <CheckIcon size={18} color={t.onAccent} />
+          </View>
         </View>
       </View>
       <Txt kind="display" accessibilityRole="header">קיבלתם את ההטבה</Txt>
