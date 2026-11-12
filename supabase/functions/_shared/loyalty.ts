@@ -178,3 +178,27 @@ export function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
   const look = via === 'email' ? 'בודקים בספאם, או שולחים' : 'אפשר לשלוח';
   return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
 }
+
+/**
+ * Fill-and-redeem: when a scan fills the card, the staff PIN typed for that scan also confirms the reward, so the
+ * staff member types once. The client sends back the collect confirmation (the stamp event's id); the server
+ * reads that event and accepts it only for the same card and customer, confirmed with a staff PIN, within this
+ * window, and never twice (a unique column on redemptions). Same window as apply_redeem_after_fill() in SQL.
+ */
+export const FILL_REDEEM_WINDOW_MS = 2 * 60_000;
+
+export type FillConfirmation = { cardId: string; userId: string; staffPinId: string | null; createdAt: string; used: boolean };
+
+/** Why a collect confirmation cannot redeem this card now, or null when it can. */
+export function fillRedeemProblem(
+  event: FillConfirmation | null,
+  request: { cardId: string; userId: string },
+  now: Date,
+): null | 'not_found' | 'mismatch' | 'expired' | 'used' {
+  if (!event) return 'not_found';
+  if (event.cardId !== request.cardId || event.userId !== request.userId || !event.staffPinId) return 'mismatch';
+  const age = now.getTime() - new Date(event.createdAt).getTime();
+  if (!(age >= 0 && age <= FILL_REDEEM_WINDOW_MS)) return 'expired';
+  if (event.used) return 'used';
+  return null;
+}

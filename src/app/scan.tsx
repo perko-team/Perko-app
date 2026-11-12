@@ -5,9 +5,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ActivityIndicator, Animated, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cooldownMessage, lockedMessage, remaining, remainingLabel, wrongPinMessage } from '../../supabase/functions/_shared/loyalty.ts';
-import type { PendingCollect } from '../lib/types';
+import type { Business, PendingCollect } from '../lib/types';
+import { NetworkError } from '../lib/backend';
 import { CloseIcon } from '../components/Icons';
 import { PinPad } from '../components/PinPad';
+import { RewardDone } from '../components/RewardDone';
 import { Progress } from '../components/Stamps';
 import { Txt } from '../components/Txt';
 import { Button } from '../components/ui';
@@ -235,10 +237,44 @@ function PinSheet({ payload, info, onDone, onCancel }: { payload: string; info: 
   );
 }
 
-/** The result of the scan. */
+/** The result of the scan. A scan that filled the card offers the reward at once, without a second PIN. */
 function ResultSheet({ outcome, onAgain, onRetry, onClose }: { outcome: CollectOutcome; onAgain: () => void; onRetry: () => void; onClose: () => void }) {
   const { t } = useTheme();
   const c = content(outcome);
+  const [taking, setTaking] = useState(false);
+  const [takeError, setTakeError] = useState<string | null>(null);
+  const [taken, setTaken] = useState<{ reward: string; business: Business | null } | null>(null);
+  const fill = outcome.status === 'ok' && outcome.completed && outcome.confirmation ? outcome : null;
+  const toRedeem = (id: string) => router.replace({ pathname: '/redeem/[id]', params: { id } });
+
+  const takeNow = async () => {
+    if (!fill) return;
+    setTaking(true);
+    setTakeError(null);
+    try {
+      const r = await api.redeemAfterFill(fill.cardId, fill.confirmation!);
+      if (r.status === 'redeemed') {
+        const business = await api.getBusiness(fill.businessId).catch(() => null);
+        setTaken({ reward: r.reward, business });
+      } else if (r.status === 'confirmation_invalid') {
+        // Too late (over 2 minutes) or already used: the usual screen, where the staff types the PIN again.
+        toRedeem(fill.cardId);
+      } else setTakeError('לא הצלחנו לתת את ההטבה. אפשר לנסות שוב בכרטיס.');
+    } catch (e) {
+      setTakeError(e instanceof NetworkError ? 'אין חיבור לאינטרנט. ההטבה לא ניתנה, מנסים שוב.' : 'משהו השתבש. ההטבה לא ניתנה.');
+    } finally {
+      setTaking(false);
+    }
+  };
+
+  if (taken && fill) {
+    return (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        <RewardDone reward={taken.reward} businessName={fill.businessName} business={taken.business} />
+      </View>
+    );
+  }
+
   return (
     <Sheet>
       <Txt kind="title" accessibilityRole="header">{c.title}</Txt>
@@ -253,6 +289,10 @@ function ResultSheet({ outcome, onAgain, onRetry, onClose }: { outcome: CollectO
         />
       ) : null}
       {c.foot ? <Txt size={16} style={{ marginTop: 14 }}>{c.foot}</Txt> : null}
+      {fill ? (
+        <Txt size={15} color={t.textMuted} style={{ marginTop: 8 }}>הקוד שהצוות הקליד עכשיו מאשר גם את ההטבה, בלי להקליד שוב.</Txt>
+      ) : null}
+      {takeError ? <Txt size={15} weight={700} accessibilityRole="alert" style={{ marginTop: 8 }}>{takeError}</Txt> : null}
       {DEMO && outcome.status === 'locked' ? (
         <Button
           label="הדגמה: בעלי העסק משחררים"
@@ -267,12 +307,14 @@ function ResultSheet({ outcome, onAgain, onRetry, onClose }: { outcome: CollectO
         />
       ) : null}
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
-        {c.primary === 'redeem' && 'cardId' in outcome && outcome.cardId ? (
-          <Button label="למימוש ההטבה" onPress={() => router.replace({ pathname: '/redeem/[id]', params: { id: outcome.cardId! } })} />
+        {fill ? (
+          <Button label="לקבל את ההטבה עכשיו" busy={taking} onPress={takeNow} />
+        ) : c.primary === 'redeem' && 'cardId' in outcome && outcome.cardId ? (
+          <Button label="לקבל את ההטבה" onPress={() => toRedeem(outcome.cardId!)} />
         ) : null}
         {c.primary === 'retry' ? <Button label="לנסות שוב" onPress={onRetry} /> : null}
         {c.primary === 'again' ? <Button label="סריקה נוספת" onPress={onAgain} /> : null}
-        {c.primary === 'done' ? <Button label="סיום" onPress={onClose} /> : <Button label="סיום" variant="quiet" onPress={onClose} />}
+        {c.primary === 'done' ? <Button label="סיום" onPress={onClose} /> : <Button label={fill ? 'אחר כך' : 'סיום'} variant="quiet" onPress={onClose} />}
       </View>
     </Sheet>
   );

@@ -1,7 +1,8 @@
-// POST /functions/v1/redeem  { action: 'confirm', cardId, pin }
+// POST /functions/v1/redeem  { action: 'confirm', cardId, pin } | { action: 'fill', cardId, confirmation }
 // Marks the reward used and opens a new card. A staff member confirms by typing their 4-digit PIN on the
 // customer's phone; the PIN is checked here, a wrong one counts towards the customer's lockout at the business.
 import { canRedeem } from '../_shared/loyalty.ts';
+import { UUID } from '../_shared/token.ts';
 import type { RedeemRequest, RedeemResponse } from '../_shared/api-types.ts';
 import { admin, cors, json, requireUser, secret } from '../_shared/server.ts';
 import { checkStaffPin, lockedUntil } from '../_shared/pins.ts';
@@ -20,7 +21,25 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: 'body' }, 400);
   }
-  if (body.action !== 'confirm' || typeof body.cardId !== 'string') return json({ error: 'body' }, 400);
+  if ((body.action !== 'confirm' && body.action !== 'fill') || typeof body.cardId !== 'string') return json({ error: 'body' }, 400);
+
+  // Right after the scan that filled the card: that scan's PIN confirms the reward. Every check is in
+  // apply_redeem_after_fill (same card and customer, a staff PIN, 2 minutes, once).
+  if (body.action === 'fill') {
+    if (typeof body.confirmation !== 'string' || !UUID.test(body.confirmation) || !UUID.test(body.cardId)) {
+      return json({ status: 'confirmation_invalid' } satisfies RedeemResponse);
+    }
+    const { data, error } = await db.rpc('apply_redeem_after_fill', { p_card_id: body.cardId, p_user: user.id, p_event_id: body.confirmation });
+    if (error) {
+      // Two requests with one confirmation: the unique column refused the second.
+      if (error.code === '23505') return json({ status: 'confirmation_invalid' } satisfies RedeemResponse);
+      return json({ error: 'write' }, 500);
+    }
+    const row = (data as { new_card_id: string | null; reward: string | null; problem: string | null }[])[0];
+    if (!row || row.problem === 'not_ready') return json({ status: 'not_ready' } satisfies RedeemResponse);
+    if (row.problem) return json({ status: 'confirmation_invalid' } satisfies RedeemResponse);
+    return json({ status: 'redeemed', newCardId: row.new_card_id!, reward: row.reward! } satisfies RedeemResponse);
+  }
 
   // The card keeps the goal and reward it was opened with.
   const { data: card } = await db

@@ -278,4 +278,53 @@ do $$ begin
   raise notice 'ok   business-media: owners write their own folder only';
 end $$;
 reset role;
+-- Fill-and-redeem (migration 20261112110000) ----------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$select * from apply_redeem_after_fill(gen_random_uuid(), '33333333-3333-4333-8333-333333333333', gen_random_uuid())$q$, 'customers cannot call apply_redeem_after_fill');
+reset role;
+set role service_role;
+do $$
+declare
+  u uuid := '33333333-3333-4333-8333-333333333333';
+  other uuid := '22222222-2222-4222-8222-222222222222';
+  b uuid := 'a0000000-0000-4000-8000-000000000002';
+  prog uuid := (select id from programs where business_id = 'a0000000-0000-4000-8000-000000000002' limit 1);
+  pin uuid := (select id from staff_pins where business_id = 'a0000000-0000-4000-8000-000000000002' limit 1);
+  c uuid; c2 uuid; ev uuid; old_ev uuid; r record;
+begin
+  insert into cards (user_id, program_id) values (u, prog) returning id into c;
+  update cards set status = 'complete', current = goal where id = c;
+  insert into stamp_events (card_id, user_id, business_id, amount, staff_pin_id) values (c, u, b, 1, pin) returning id into ev;
+  insert into stamp_events (card_id, user_id, business_id, amount, staff_pin_id, created_at)
+    values (c, u, b, 1, pin, now() - interval '2 minutes 1 second') returning id into old_ev;
+
+  select * into r from apply_redeem_after_fill(c, u, old_ev);
+  assert r.problem = 'expired', format('older than 2 minutes %s', r);
+  select * into r from apply_redeem_after_fill(c, other, ev);
+  assert r.problem = 'mismatch', 'another customer';
+  insert into cards (user_id, program_id) values (other, prog) returning id into c2;
+  select * into r from apply_redeem_after_fill(c2, u, ev);
+  assert r.problem = 'mismatch', 'another card';
+  update stamp_events set staff_pin_id = null where id = old_ev;
+  update stamp_events set created_at = now() where id = old_ev;
+  select * into r from apply_redeem_after_fill(c, u, old_ev);
+  assert r.problem = 'mismatch', 'a stamp without a staff PIN confirms nothing';
+  assert (select status from cards where id = c) = 'complete', 'nothing redeemed yet';
+
+  select * into r from apply_redeem_after_fill(c, u, ev);
+  assert r.problem is null and r.reward is not null and r.new_card_id <> c, format('redeemed %s', r);
+  assert (select status from cards where id = c) = 'redeemed';
+  assert (select staff_pin_id from redemptions where collect_event_id = ev) = pin, 'the redemption records the scan''s staff PIN';
+
+  -- A reused confirmation: the new card filled again, the old confirmation does not redeem it.
+  update cards set status = 'complete', current = goal where id = r.new_card_id;
+  insert into stamp_events (card_id, user_id, business_id, amount, staff_pin_id) values (r.new_card_id, u, b, 1, pin);
+  select * into r from apply_redeem_after_fill(r.new_card_id, u, ev);
+  assert r.problem = 'mismatch', 'a confirmation of the old card';
+  select * into r from apply_redeem_after_fill(c, u, ev);
+  assert r.problem = 'used', 'a confirmation is used once';
+  raise notice 'ok   fill-and-redeem: same card and customer, a staff PIN, within 2 minutes, once';
+end $$;
+reset role;
 \echo ALL DB CHECKS PASSED

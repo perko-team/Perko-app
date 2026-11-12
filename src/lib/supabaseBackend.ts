@@ -207,5 +207,8 @@ export function createSupabaseBackend(): Backend {
     confirmRedeem(cardId, pin) {
       return invoke<RedeemResponse>('redeem', { action: 'confirm', cardId, pin });
     },
+    redeemAfterFill(cardId, confirmation) {
+      return invoke<RedeemResponse>('redeem', { action: 'fill', cardId, confirmation });
+    },
   };
 }

@@ -1,11 +1,12 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { lockedMessage, wrongPinMessage } from '../../../supabase/functions/_shared/loyalty.ts';
 import { PinPad } from '../../components/PinPad';
+import { RewardDone } from '../../components/RewardDone';
 import { Progress } from '../../components/Stamps';
 import { Txt } from '../../components/Txt';
-import { Button, LoadState, Screen, Tag, TopBar } from '../../components/ui';
+import { LoadState, Screen, Tag, TopBar } from '../../components/ui';
 import { OnBrand } from '../../components/surface';
 import { useTheme } from '../../lib/appearance';
 import { api } from '../../lib/api';
@@ -47,7 +48,7 @@ export default function Redeem() {
     }
   };
 
-  if (done) return <Done reward={done.reward} business={card?.business.name ?? ''} />;
+  if (done) return <RewardDone reward={done.reward} businessName={card?.business.name ?? ''} business={card?.business} />;
 
   const unit = card?.program.type === 'points' ? 'נקודות' : 'חותמות';
 
@@ -86,14 +87,3 @@ export default function Redeem() {
   );
 }
 
-function Done({ reward, business }: { reward: string; business: string }) {
-  const { t } = useTheme();
-  return (
-    <Screen bg={t.hero} contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 14 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: t.accent }} />
-      <Txt kind="display" accessibilityRole="header">ההטבה מומשה</Txt>
-      <Txt kind="lead" color={t.onHeroMuted}>{reward} ב{business}. כרטיס חדש כבר התחיל בארנק.</Txt>
-      <Button label="חזרה לכרטיסים" onPress={() => router.dismissTo('/')} style={{ alignSelf: 'flex-start', marginTop: 10 }} />
-    </Screen>
-  );
-}

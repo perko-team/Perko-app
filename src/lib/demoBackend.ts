@@ -3,11 +3,11 @@
 // but nothing here is secure: codes are not signature-checked, any 6-digit SMS code is accepted and the staff PIN
 // of every sample business is DEMO_PIN.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { decideCollect, isRateLimited, PIN_MAX_FAILURES, RATE_LIMITS } from '../../supabase/functions/_shared/loyalty.ts';
+import { decideCollect, fillRedeemProblem, isRateLimited, PIN_MAX_FAILURES, RATE_LIMITS } from '../../supabase/functions/_shared/loyalty.ts';
 import { parseQrPayload } from '../../supabase/functions/_shared/token.ts';
 import { DEFAULT_LOOK } from '../cardLook';
 import { AuthError, type AuthListener, type Backend } from './backend';
-import type { Business, Card, CardStatus, CollectResponse, CollectSource, Profile, Program, Redemption } from './types';
+import type { Business, Card, CardStatus, CollectResponse, CollectSource, Profile, Program, Redemption, RedeemResponse } from './types';
 
 const KEY = 'perko.demo.v1';
 /** The staff PIN of every sample business in demo mode. */
@@ -57,7 +57,7 @@ const qrToBusiness = (qrId: string) => {
 };
 
 type StoredCard = { id: string; programId: string; current: number; status: CardStatus; createdAt: string; lastCollectedAt: string | null; completedAt: string | null };
-type StoredEvent = { id: string; cardId: string; amount: number; createdAt: string };
+type StoredEvent = { id: string; cardId: string; amount: number; createdAt: string; usedForReward?: boolean };
 type State = {
   profile: Profile | null;
   cards: StoredCard[];
@@ -192,9 +192,22 @@ export function createDemoBackend(): Backend {
       s.cards.push(card);
     }
     Object.assign(card, { current: d.current, status: d.status, lastCollectedAt: now.toISOString(), completedAt: d.completed ? now.toISOString() : null });
-    s.events.push({ id: uid(), cardId: card.id, amount: d.added, createdAt: now.toISOString() });
+    const event = { id: uid(), cardId: card.id, amount: d.added, createdAt: now.toISOString() };
+    s.events.push(event);
     await save();
-    return { status: 'ok', ...info, cardId: card.id, current: d.current, added: d.added, completed: d.completed };
+    return { status: 'ok', ...info, cardId: card.id, current: d.current, added: d.added, completed: d.completed, confirmation: d.completed ? event.id : undefined };
+  };
+
+  /** Marks the full card redeemed and starts a new one, as apply_redeem() does. */
+  const redeemCard = async (s: State, c: StoredCard): Promise<RedeemResponse> => {
+    const business = programById(c.programId);
+    const now = new Date().toISOString();
+    c.status = 'redeemed';
+    s.redemptions.push({ id: uid(), reward: business.program!.reward, businessName: business.name, createdAt: now });
+    const next: StoredCard = { id: uid(), programId: c.programId, current: 0, status: 'active', createdAt: now, lastCollectedAt: null, completedAt: null };
+    s.cards.push(next);
+    await save();
+    return { status: 'redeemed', newCardId: next.id, reward: business.program!.reward };
   };
 
   return {
@@ -289,13 +302,25 @@ export function createDemoBackend(): Backend {
       if (failures(s, business.id) >= PIN_MAX_FAILURES) return { status: 'locked', until: midnight() };
       const refused = await checkPin(s, business.id, pin);
       if (refused) return refused;
-      const now = new Date().toISOString();
-      c.status = 'redeemed';
-      s.redemptions.push({ id: uid(), reward: business.program!.reward, businessName: business.name, createdAt: now });
-      const next: StoredCard = { id: uid(), programId: c.programId, current: 0, status: 'active', createdAt: now, lastCollectedAt: null, completedAt: null };
-      s.cards.push(next);
-      await save();
-      return { status: 'redeemed', newCardId: next.id, reward: business.program!.reward };
+      return redeemCard(s, c);
+    },
+
+    async redeemAfterFill(cardId, confirmation) {
+      await delay();
+      const s = await signedIn();
+      const ev = s.events.find((e) => e.id === confirmation);
+      // As apply_redeem_after_fill() on the server. Demo stamps are always confirmed with the PIN.
+      const problem = fillRedeemProblem(
+        ev ? { cardId: ev.cardId, userId: 'demo', staffPinId: 'demo', createdAt: ev.createdAt, used: !!ev.usedForReward } : null,
+        { cardId, userId: 'demo' },
+        new Date(),
+      );
+      if (problem) return { status: 'confirmation_invalid' };
+      const c = s.cards.find((x) => x.id === cardId);
+      if (!c || c.status !== 'complete') return { status: 'not_ready' };
+      ev!.usedForReward = true;
+      return redeemCard(s, c);
     },
   };
 }
+

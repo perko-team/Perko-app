@@ -185,6 +185,30 @@ function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
   return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
 }
 
+/**
+ * Fill-and-redeem: when a scan fills the card, the staff PIN typed for that scan also confirms the reward, so the
+ * staff member types once. The client sends back the collect confirmation (the stamp event's id); the server
+ * reads that event and accepts it only for the same card and customer, confirmed with a staff PIN, within this
+ * window, and never twice (a unique column on redemptions). Same window as apply_redeem_after_fill() in SQL.
+ */
+const FILL_REDEEM_WINDOW_MS = 2 * 60_000;
+
+type FillConfirmation = { cardId: string; userId: string; staffPinId: string | null; createdAt: string; used: boolean };
+
+/** Why a collect confirmation cannot redeem this card now, or null when it can. */
+function fillRedeemProblem(
+  event: FillConfirmation | null,
+  request: { cardId: string; userId: string },
+  now: Date,
+): null | 'not_found' | 'mismatch' | 'expired' | 'used' {
+  if (!event) return 'not_found';
+  if (event.cardId !== request.cardId || event.userId !== request.userId || !event.staffPinId) return 'mismatch';
+  const age = now.getTime() - new Date(event.createdAt).getTime();
+  if (!(age >= 0 && age <= FILL_REDEEM_WINDOW_MS)) return 'expired';
+  if (event.used) return 'used';
+  return null;
+}
+
 // ---- _shared/token.ts
 // Signed counter QR tokens and staff PIN hashes.
 // Uses only WebCrypto, available in Deno (Edge Functions) and Node 20+ (admin script, tests).
@@ -322,7 +346,9 @@ type CollectedCard = {
 type PendingCollect = Omit<CollectedCard, 'cardId'> & { cardId: string | null; step: number };
 
 type CollectResponse =
-  | ({ status: 'ok'; added: number; completed: boolean } & CollectedCard)
+  // confirmation: when this scan filled the card, the id of the stamp it wrote. Sent back to redeem ('fill')
+  // within 2 minutes, it confirms the reward without a second PIN.
+  | ({ status: 'ok'; added: number; completed: boolean; confirmation?: string } & CollectedCard)
   | { status: 'cooldown'; retryAt: string; remainingMinutes: number; businessName: string }
   | ({ status: 'complete' } & CollectedCard) // the card is already full: redeem first
   | ({ status: 'pin_required' } & PendingCollect) // check passed: show the PIN pad to the staff member
@@ -332,15 +358,21 @@ type CollectResponse =
   | { status: 'inactive' } // revoked code, or the business or program is paused
   | { status: 'rate_limited' };
 
-/** A reward is used when a staff member types their PIN on the customer's phone. */
-type RedeemRequest = { action: 'confirm'; cardId: string; pin: string };
+/**
+ * A reward is used when a staff member types their PIN on the customer's phone ('confirm'), or right after the
+ * scan that filled the card, with that scan's confirmation ('fill'): checked on the server, same card, 2 minutes.
+ */
+type RedeemRequest =
+  | { action: 'confirm'; cardId: string; pin: string }
+  | { action: 'fill'; cardId: string; confirmation: string };
 
 type RedeemResponse =
   | { status: 'redeemed'; newCardId: string; reward: string }
   | { status: 'wrong_pin'; attemptsLeft: number }
   | { status: 'locked'; until: string } // too many wrong PINs today at this business
   | { status: 'not_ready' } // the card is not complete (or already redeemed)
-  | { status: 'not_found' };
+  | { status: 'not_found' }
+  | { status: 'confirmation_invalid' }; // 'fill' only: another card, too old or already used. Confirm with a PIN.
 
 // business-admin: what the owner dashboard (and scripts/admin.ts with the service role key) can do.
 type PinMode = 'shared' | 'per_staff';
@@ -652,5 +684,13 @@ Deno.serve(async (req) => {
     current: final.current,
     reward: open.reward,
   };
-  return json({ status: 'ok', ...info, added: final.added, completed: final.completed } satisfies CollectResponse);
+  // A full card: the stamp this PIN just wrote is the confirmation for taking the reward right away.
+  let confirmation: string | undefined;
+  if (final.completed) {
+    const { data: ev } = await db.from('stamp_events').select('id')
+      .eq('card_id', open.id).eq('user_id', user.id).eq('staff_pin_id', pin.staffPinId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    confirmation = ev?.id;
+  }
+  return json({ status: 'ok', ...info, added: final.added, completed: final.completed, confirmation } satisfies CollectResponse);
 });
