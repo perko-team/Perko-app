@@ -228,3 +228,15 @@ export function fullCardMessage(reward: string): string {
 
 /** The title of a full card, everywhere it shows. */
 export const FULL_TITLE = 'מלא! ההטבה מחכה';
+
+/** A first name: what the app greets with ("שלום, נועה"). Required after the first sign-in. */
+export const NAME_MAX = 30;
+
+/** Why the name cannot be saved, or null when it can. */
+export function nameProblem(input: string): string | null {
+  const v = input.trim();
+  if (!v) return 'צריך למלא שם כדי להמשיך';
+  if (v.length > NAME_MAX) return `עד ${NAME_MAX} תווים`;
+  if (!/\p{L}/u.test(v)) return 'שם צריך לכלול אותיות';
+  return null;
+}

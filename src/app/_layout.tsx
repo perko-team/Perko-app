@@ -81,6 +81,8 @@ function Routes() {
   }, [ready]);
   if (!ready) return null;
   const signedIn = !!profile;
+  // Right after the first sign-in the app asks for a first name, and nothing else opens until it is saved.
+  const named = !!profile?.name?.trim();
   return (
     <>
       {/* Status bar icons follow the appearance. The scan screen sets light icons on its ink background. */}
@@ -92,7 +94,10 @@ function Routes() {
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
         </Stack.Protected>
-        <Stack.Protected guard={signedIn}>
+        <Stack.Protected guard={signedIn && !named}>
+          <Stack.Screen name="name" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn && named}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
           <Stack.Screen name="business/[id]" />

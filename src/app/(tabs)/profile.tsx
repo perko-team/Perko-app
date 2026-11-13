@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import { formatIsraeliPhone } from '../../../supabase/functions/_shared/loyalty.ts';
+import { formatIsraeliPhone, NAME_MAX, nameProblem } from '../../../supabase/functions/_shared/loyalty.ts';
 import { Wordmark } from '../../components/Brand';
 import { ChevronIcon } from '../../components/Icons';
 import { Txt } from '../../components/Txt';
@@ -23,9 +23,12 @@ export default function Profile() {
   const [deleting, setDeleting] = useState<'idle' | 'confirm' | 'busy'>('idle');
 
   const saveName = async () => {
+    // A name is required (asked after the first sign-in): it can be changed here, not removed.
+    const problem = nameProblem(name);
+    if (problem) return setMessage(problem);
     try {
       await api.updateName(name);
-      setProfile(profile ? { ...profile, name: name.trim() || null } : null);
+      setProfile(profile ? { ...profile, name: name.trim() } : null);
       setSaved(true);
       setMessage(null);
     } catch (e) {
@@ -65,9 +68,9 @@ export default function Profile() {
             }}
             onSubmitEditing={saveName}
             placeholder="איך לקרוא לך?"
-            placeholderTextColor="rgba(48, 54, 38, 0.55)"
+            placeholderTextColor={t.placeholder}
             accessibilityLabel="שם"
-            maxLength={60}
+            maxLength={NAME_MAX}
             selectionColor={t.text}
             cursorColor={t.text}
             style={{ minHeight: 52, borderRadius: 14, backgroundColor: t.surfaceAlt, paddingHorizontal: 14, fontFamily: fonts[500], fontSize: 17, color: t.text }}

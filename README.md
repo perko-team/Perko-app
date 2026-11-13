@@ -164,6 +164,14 @@ Local stack instead (needs Docker): `npx supabase start`, then `npx supabase db 
 - The rules live once in `supabase/functions/_shared/loyalty.ts` and `token.ts` (no imports), used by the
   functions, the app (labels, demo mode), the dashboard and the tests. `pins.ts` (server only) checks and issues PINs.
 
+## First name after the first sign-in
+
+Right after the first sign-in the app asks "איך לקרוא לך?" (`src/app/name.tsx`). It is required: the route guard in
+`src/app/_layout.tsx` opens nothing else until `profiles.name` is set, so people who signed up before this change
+are asked on their next launch. A first name of up to 30 characters with at least one letter (`nameProblem()` in
+`_shared/loyalty.ts`, tested). The wallet greets with it ("שלום, נועה") and the owner's log shows it instead of a
+masked phone or email. It can be changed in Profile, not removed.
+
 ## Staff PIN at the counter
 
 The counter QR code is printed and static: on its own, a photo of it would let a customer collect from home every
