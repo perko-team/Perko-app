@@ -235,7 +235,7 @@ phones. A new owner first goes through a three-step guide (program, team PIN, co
 
 Access: `business_members` (user, business, role `owner` | `staff`; staff is reserved and has no dashboard access
 yet). RLS lets an owner read and edit only their own business; the log, insights and alerts come from RPCs
-(`business_log`, `business_insights`, `business_alert_list`) that check membership; anything that needs a secret
+(`business_log`, `business_insights`, `business_alert_list`, `business_alert_states`) that check membership; anything that needs a secret
 goes through `business-admin`, never from the browser. The sign-in screen never creates accounts: owners are added
 with `owners:add`.
 

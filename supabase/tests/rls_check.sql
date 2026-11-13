@@ -171,7 +171,7 @@ select pg_temp.expect_error($q$select release_lockout('a0000000-0000-4000-8000-0
 set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
 select pg_temp.expect_error($q$select release_lockout('a0000000-0000-4000-8000-000000000001', gen_random_uuid(), null)$q$, 'owner cannot call release_lockout directly (only through business-admin)');
 do $$ begin
-  assert (select active from business_alert_list('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout'), 'today''s lockout is active';
+  assert (select active from business_alert_states('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout'), 'today''s lockout is active';
 end $$;
 reset role;
 set role service_role;
@@ -209,8 +209,8 @@ declare r record;
 begin
   select * into r from business_log('a0000000-0000-4000-8000-000000000001') where kind = 'release';
   assert r.staff_name = 'בעלי העסק' and r.customer = '•••4567', format('release log row %s', r);
-  assert (select count(*) from business_alert_list('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and not active and resolved_at is not null) = 2, 'both earlier lockouts are settled';
-  assert (select count(*) from business_alert_list('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and active) = 1, 'the new lockout is active';
+  assert (select count(*) from business_alert_states('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and not active and resolved_at is not null) = 2, 'both earlier lockouts are settled';
+  assert (select count(*) from business_alert_states('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and active) = 1, 'the new lockout is active';
   raise notice 'ok   the release shows in the owner''s log, and alerts say which lockouts are active';
 end $$;
 reset role;

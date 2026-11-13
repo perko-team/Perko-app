@@ -81,9 +81,10 @@ begin
   limit least(greatest(p_limit, 1), 1000);
 end $$;
 
--- Alerts now say whether a lockout is still in force (today, not released), so the dashboard can offer "שחרור".
-drop function public.business_alert_list(uuid, int);
-create function public.business_alert_list(p_business uuid, p_limit int default 100)
+-- Alerts with whether a lockout is still in force (today, not released), so the dashboard can offer "שחרור".
+-- A new function next to business_alert_list (kept as it was, for dashboards deployed before this change),
+-- so the migration only adds and never drops.
+create function public.business_alert_states(p_business uuid, p_limit int default 100)
 returns table (id uuid, kind text, created_at timestamptz, seen_at timestamptz, failures int, customer text, resolved_at timestamptz, active boolean)
 language plpgsql stable security definer set search_path = public as $$
 begin
@@ -98,5 +99,5 @@ begin
   order by a.created_at desc
   limit least(greatest(p_limit, 1), 500);
 end $$;
-revoke all on function public.business_alert_list(uuid, int) from public, anon;
-grant execute on function public.business_alert_list(uuid, int) to authenticated;
+revoke all on function public.business_alert_states(uuid, int) from public, anon;
+grant execute on function public.business_alert_states(uuid, int) to authenticated;

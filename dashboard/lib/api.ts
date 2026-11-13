@@ -195,7 +195,7 @@ export async function getInsights(businessId: string, days: number): Promise<Ins
 }
 
 export async function getAlerts(businessId: string): Promise<Alert[]> {
-  const rows = check(await sb().rpc('business_alert_list', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
+  const rows = check(await sb().rpc('business_alert_states', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
   return rows.map((r) => ({
     id: r.id, kind: r.kind, createdAt: r.created_at, seenAt: r.seen_at, failures: r.failures, customer: r.customer,
     resolvedAt: r.resolved_at ?? null, active: r.active === true,
