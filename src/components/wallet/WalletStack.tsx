@@ -33,6 +33,7 @@ import { gutter, TAB_CLEARANCE } from '../../theme';
 import { cardA11y } from '../CardViews';
 import { Txt } from '../Txt';
 import { Button } from '../ui';
+import { FocusDetails } from './FocusDetails';
 import { cardHeight, STRIP, WalletCardFace } from './WalletCard';
 
 /** Close to critical damping: a short, confident settle with the smallest overshoot. */
@@ -86,6 +87,7 @@ export function WalletStack({ cards, header, footer, onDetails, onScan, onRedeem
   const stackH = (n - 1) * STRIP + H;
 
   const [focused, setFocused] = useState<number | null>(null);
+  const [viewportJS, setViewportJS] = useState(0);
 
   // Geometry measured on layout, read on the UI thread.
   const viewportH = useSharedValue(0);
@@ -180,7 +182,14 @@ export function WalletStack({ cards, header, footer, onDetails, onScan, onRedeem
     transform: [{ translateY: topInset.value + 12 + H + 18 + (1 - progress.value) * 24 }],
   }));
 
-  const onRoot = (e: LayoutChangeEvent) => viewportH.set(e.nativeEvent.layout.height);
+  const onRoot = (e: LayoutChangeEvent) => {
+    viewportH.set(e.nativeEvent.layout.height);
+    setViewportJS(e.nativeEvent.layout.height);
+  };
+  // Room for the details under the focused card: from below the actions (buttons ~44 + pager ~20 + gaps) to the
+  // top of the pile, so nothing overlaps the cards waiting at the bottom.
+  const pileTopJS = n > 1 ? viewportJS - PILE_PEEK - Math.min(n - 2, 3) * PILE_STEP : viewportJS - TAB_CLEARANCE - 16;
+  const detailsMax = pileTopJS - (insets.top + 12 + H + 18) - (n > 1 ? 44 + 20 + 28 : 44 + 14) - 12;
   const current = focused === null ? null : cards[focused];
 
   return (
@@ -230,11 +239,12 @@ export function WalletStack({ cards, header, footer, onDetails, onScan, onRedeem
             {current ? (
               <>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {current.status === 'complete' ? <Button label="מימוש ההטבה" onPress={() => onRedeem(current)} small /> : null}
+                  {current.status === 'complete' ? <Button label="לקבל את ההטבה" onPress={() => onRedeem(current)} small /> : null}
                   <Button label="סריקה בקופה" onPress={onScan} small variant={current.status === 'complete' ? 'quiet' : 'ink'} />
                   <Button label="פרטי הכרטיס" onPress={() => onDetails(current)} small variant="quiet" />
                 </View>
                 {n > 1 ? <Pager index={focused!} count={n} /> : null}
+                <FocusDetails card={current} maxHeight={detailsMax} />
               </>
             ) : null}
           </Animated.View>
@@ -253,7 +263,7 @@ function Pager({ index, count }: { index: number; count: number }) {
           <View key={k} style={{ width: k === index ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: k === index ? t.accent : t.surfaceStrong }} />
         ))}
       </View>
-      <Txt size={13} color={t.textMuted}>החלקה לצד למעבר בין כרטיסים</Txt>
+      <Txt size={14} color={t.textMuted}>החלקה לצד למעבר בין כרטיסים</Txt>
     </View>
   );
 }

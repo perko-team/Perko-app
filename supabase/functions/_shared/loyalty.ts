@@ -147,7 +147,84 @@ export function wrongPinMessage(attemptsLeft: number): string {
   return `הקוד שגוי. נשארו ${attemptsLeft} ניסיונות`;
 }
 
-/** Shown when the customer is locked out at a business until midnight. */
+/** Shown when the customer is locked out at a business until midnight, or until the owner releases it. */
 export function lockedMessage(): string {
-  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר';
+  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר, או לבקש מבעלי העסק לשחרר';
 }
+
+/** What the email field says when it is not an email address. */
+export const EMAIL_INVALID = 'כתובת אימייל, למשל noa@example.com';
+/** A phone number typed into the email field, while sign-in is by email only. */
+export const PHONE_IN_EMAIL = 'כרגע נכנסים עם כתובת מייל. אין מייל? אפשר לבקש עזרה בקופה.';
+
+/**
+ * Why the email field cannot be used, or null when it holds an email address. An Israeli mobile number gets
+ * its own message: people who type their phone need to hear that sign-in is by email, not see an email example.
+ */
+export function emailFieldProblem(input: string): string | null {
+  if (normalizeEmail(input)) return null;
+  if (normalizeIsraeliPhone(input)) return PHONE_IN_EMAIL;
+  return EMAIL_INVALID;
+}
+
+/** Under the code field until every digit is typed: why "כניסה" is not yet active. */
+export function codeHint(typed: number, length: number, via: 'email' | 'sms'): string | null {
+  if (typed >= length) return null;
+  return `מקלידים את ${length} הספרות ${via === 'email' ? 'מהמייל' : 'מה-SMS'}`;
+}
+
+/** The resend line under the code: where to look first, then when a new code can be sent. */
+export function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
+  const look = via === 'email' ? 'בודקים בספאם, או שולחים' : 'אפשר לשלוח';
+  return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
+}
+
+/**
+ * Fill-and-redeem: when a scan fills the card, the staff PIN typed for that scan also confirms the reward, so the
+ * staff member types once. The client sends back the collect confirmation (the stamp event's id); the server
+ * reads that event and accepts it only for the same card and customer, confirmed with a staff PIN, within this
+ * window, and never twice (a unique column on redemptions). Same window as apply_redeem_after_fill() in SQL.
+ */
+export const FILL_REDEEM_WINDOW_MS = 2 * 60_000;
+
+export type FillConfirmation = { cardId: string; userId: string; staffPinId: string | null; createdAt: string; used: boolean };
+
+/** Why a collect confirmation cannot redeem this card now, or null when it can. */
+export function fillRedeemProblem(
+  event: FillConfirmation | null,
+  request: { cardId: string; userId: string },
+  now: Date,
+): null | 'not_found' | 'mismatch' | 'expired' | 'used' {
+  if (!event) return 'not_found';
+  if (event.cardId !== request.cardId || event.userId !== request.userId || !event.staffPinId) return 'mismatch';
+  const age = now.getTime() - new Date(event.createdAt).getTime();
+  if (!(age >= 0 && age <= FILL_REDEEM_WINDOW_MS)) return 'expired';
+  if (event.used) return 'used';
+  return null;
+}
+
+/**
+ * The card's rules as three plain facts, for the business page and the card screen: what counts as a purchase,
+ * how often one can collect, and how much a purchase is worth. Customer copy never says "צבירה" or "מימוש".
+ */
+export function ruleFacts(p: { type: ProgramType; step: number; rule: string; cooldownMinutes: number }): { label: string; value: string }[] {
+  const what = p.rule.trim() || 'כל קנייה בקופה';
+  const worth = p.type === 'points'
+    ? `${p.step} נקודות על כל קנייה`
+    : p.step === 1 ? 'חותמת אחת על כל קנייה' : `${p.step} חותמות על כל קנייה`;
+  const once = p.type === 'points' ? 'נקודות פעם אחת' : 'חותמת אחת';
+  const often = p.cooldownMinutes > 0 ? `אפשר לאסוף ${once} בכל ${durationLabel(p.cooldownMinutes)}` : 'אין הגבלה: כל קנייה נספרת';
+  return [
+    { label: 'מה נחשב קנייה', value: what },
+    { label: 'כל כמה זמן', value: often },
+    { label: 'כמה מקבלים', value: worth },
+  ];
+}
+
+/** A scan of a card that is already full. */
+export function fullCardMessage(reward: string): string {
+  return `הקנייה הזו לא נספרה כי הכרטיס מלא. מקבלים את ההטבה (${reward}) ומתחילים כרטיס חדש`;
+}
+
+/** The title of a full card, everywhere it shows. */
+export const FULL_TITLE = 'מלא! ההטבה מחכה';

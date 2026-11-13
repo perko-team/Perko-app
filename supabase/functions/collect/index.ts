@@ -162,5 +162,13 @@ Deno.serve(async (req) => {
     current: final.current,
     reward: open.reward,
   };
-  return json({ status: 'ok', ...info, added: final.added, completed: final.completed } satisfies CollectResponse);
+  // A full card: the stamp this PIN just wrote is the confirmation for taking the reward right away.
+  let confirmation: string | undefined;
+  if (final.completed) {
+    const { data: ev } = await db.from('stamp_events').select('id')
+      .eq('card_id', open.id).eq('user_id', user.id).eq('staff_pin_id', pin.staffPinId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    confirmation = ev?.id;
+  }
+  return json({ status: 'ok', ...info, added: final.added, completed: final.completed, confirmation } satisfies CollectResponse);
 });

@@ -4,6 +4,7 @@ import { ActivityIndicator, Animated, Pressable, ScrollView, View, type StylePro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../lib/appearance';
 import { DEMO } from '../lib/config';
+import { takeFullBanner } from '../lib/demoBanner';
 import { useReduceMotion } from '../lib/hooks';
 import type { Tone } from '../lib/types';
 import { colors, gutter, motion, radius, touch } from '../theme';
@@ -182,9 +183,19 @@ export function Tag({ label, onLime }: { label: string; onLime?: boolean }) {
 }
 
 /** Thin banner shown in demo mode so nobody mistakes the sample data for a live service. */
+/** Demo mode: the full explanation on the first screen of the session, a small "הדגמה" tag after that. */
 export function DemoBanner() {
   const { t } = useTheme();
+  // Decided once per mount, so the screen that showed the full banner keeps it while it is open.
+  const [full] = useState(() => DEMO && takeFullBanner());
   if (!DEMO) return null;
+  if (!full) {
+    return (
+      <View style={{ alignSelf: 'flex-start', marginBottom: 10 }} accessible accessibilityLabel="מצב הדגמה: נתונים לדוגמה על המכשיר הזה בלבד">
+        <Tag label="הדגמה" />
+      </View>
+    );
+  }
   return (
     <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12 }}>
       <Txt kind="small" color={t.textMuted}>

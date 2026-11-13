@@ -164,6 +164,57 @@ begin
 end $$;
 reset role;
 
+-- Lockout release (migration 20261112100000) ---------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+select pg_temp.expect_error($q$select release_lockout('a0000000-0000-4000-8000-000000000001', gen_random_uuid(), null)$q$, 'customer cannot release a lockout');
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$select release_lockout('a0000000-0000-4000-8000-000000000001', gen_random_uuid(), null)$q$, 'owner cannot call release_lockout directly (only through business-admin)');
+do $$ begin
+  assert (select active from business_alert_states('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout'), 'today''s lockout is active';
+end $$;
+reset role;
+set role service_role;
+do $$
+declare
+  u uuid := '11111111-1111-4111-8111-111111111111';
+  b uuid := 'a0000000-0000-4000-8000-000000000001';
+  a uuid;
+  r record;
+begin
+  -- Lock the customer again (one failure is already on record since the last success).
+  perform register_pin_failure(u, b, 'collect');
+  perform register_pin_failure(u, b, 'collect');
+  assert pin_locked_until(u, b) is not null, 'locked again';
+  select id into a from business_alerts where kind = 'pin_lockout' and business_id = b and user_id = u order by created_at desc limit 1;
+  assert release_lockout('a0000000-0000-4000-8000-000000000002', a, null) is null, 'an alert of another business releases nothing';
+  assert pin_locked_until(u, b) is not null;
+  assert release_lockout(b, a, '33333333-3333-4333-8333-333333333333') = u, 'release returns the customer';
+  assert pin_locked_until(u, b) is null and pin_failures_today(u, b) = 0, 'released: can collect at once';
+  assert (select count(*) from pin_failures where user_id = u and business_id = b and released_at is not null) >= 3, 'failures kept, marked released';
+  assert release_lockout(b, a, null) is null, 'a release twice does nothing';
+  assert (select resolved_at from business_alerts where id = a) is not null;
+
+  assert register_pin_failure(u, b, 'collect') = 1;
+  assert register_pin_failure(u, b, 'collect') = 2;
+  assert register_pin_failure(u, b, 'collect') = 3;
+  assert pin_locked_until(u, b) is not null, 'the lockout still triggers after 3 wrong PINs';
+  raise notice 'ok   the owner''s release clears today''s lockout, keeps the failures and the lockout still works';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+do $$
+declare r record;
+begin
+  select * into r from business_log('a0000000-0000-4000-8000-000000000001') where kind = 'release';
+  assert r.staff_name = 'בעלי העסק' and r.customer = '•••4567', format('release log row %s', r);
+  assert (select count(*) from business_alert_states('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and not active and resolved_at is not null) = 2, 'both earlier lockouts are settled';
+  assert (select count(*) from business_alert_states('a0000000-0000-4000-8000-000000000001') where kind = 'pin_lockout' and active) = 1, 'the new lockout is active';
+  raise notice 'ok   the release shows in the owner''s log, and alerts say which lockouts are active';
+end $$;
+reset role;
+
 -- As the table owner: customer_label is callable only from the security-definer RPCs.
 do $$ begin
   insert into profiles (id, name) values ('11111111-1111-4111-8111-111111111111', 'נועה') on conflict (id) do update set name = excluded.name;
@@ -225,6 +276,76 @@ do $$ begin
   assert (select count(*) from storage.objects) = 0, 'customer does not list owners'' files';
   assert (select public from storage.buckets where id = 'business-media'), 'bucket is public for reading';
   raise notice 'ok   business-media: owners write their own folder only';
+end $$;
+reset role;
+-- Fill-and-redeem (migration 20261112110000) ----------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$select * from apply_redeem_after_fill(gen_random_uuid(), '33333333-3333-4333-8333-333333333333', gen_random_uuid())$q$, 'customers cannot call apply_redeem_after_fill');
+reset role;
+set role service_role;
+do $$
+declare
+  u uuid := '33333333-3333-4333-8333-333333333333';
+  other uuid := '22222222-2222-4222-8222-222222222222';
+  b uuid := 'a0000000-0000-4000-8000-000000000002';
+  prog uuid := (select id from programs where business_id = 'a0000000-0000-4000-8000-000000000002' limit 1);
+  pin uuid := (select id from staff_pins where business_id = 'a0000000-0000-4000-8000-000000000002' limit 1);
+  c uuid; c2 uuid; ev uuid; old_ev uuid; r record;
+begin
+  insert into cards (user_id, program_id) values (u, prog) returning id into c;
+  update cards set status = 'complete', current = goal where id = c;
+  insert into stamp_events (card_id, user_id, business_id, amount, staff_pin_id) values (c, u, b, 1, pin) returning id into ev;
+  insert into stamp_events (card_id, user_id, business_id, amount, staff_pin_id, created_at)
+    values (c, u, b, 1, pin, now() - interval '2 minutes 1 second') returning id into old_ev;
+
+  select * into r from apply_redeem_after_fill(c, u, old_ev);
+  assert r.problem = 'expired', format('older than 2 minutes %s', r);
+  select * into r from apply_redeem_after_fill(c, other, ev);
+  assert r.problem = 'mismatch', 'another customer';
+  insert into cards (user_id, program_id) values (other, prog) returning id into c2;
+  select * into r from apply_redeem_after_fill(c2, u, ev);
+  assert r.problem = 'mismatch', 'another card';
+  update stamp_events set staff_pin_id = null where id = old_ev;
+  update stamp_events set created_at = now() where id = old_ev;
+  select * into r from apply_redeem_after_fill(c, u, old_ev);
+  assert r.problem = 'mismatch', 'a stamp without a staff PIN confirms nothing';
+  assert (select status from cards where id = c) = 'complete', 'nothing redeemed yet';
+
+  select * into r from apply_redeem_after_fill(c, u, ev);
+  assert r.problem is null and r.reward is not null and r.new_card_id <> c, format('redeemed %s', r);
+  assert (select status from cards where id = c) = 'redeemed';
+  assert (select staff_pin_id from redemptions where collect_event_id = ev) = pin, 'the redemption records the scan''s staff PIN';
+
+  -- A reused confirmation: the new card filled again, the old confirmation does not redeem it.
+  update cards set status = 'complete', current = goal where id = r.new_card_id;
+  insert into stamp_events (card_id, user_id, business_id, amount, staff_pin_id) values (r.new_card_id, u, b, 1, pin);
+  select * into r from apply_redeem_after_fill(r.new_card_id, u, ev);
+  assert r.problem = 'mismatch', 'a confirmation of the old card';
+  select * into r from apply_redeem_after_fill(c, u, ev);
+  assert r.problem = 'used', 'a confirmation is used once';
+  raise notice 'ok   fill-and-redeem: same card and customer, a staff PIN, within 2 minutes, once';
+end $$;
+reset role;
+-- Business info (migration 20261112120000) -------------------------------------------------------------
+do $$ begin
+  assert (select count(*) from businesses where is_sample and weekly_hours is not null) = 5, 'sample businesses have weekly hours';
+  assert (select weekly_hours->5->>'close' from businesses where slug = 'cafe-pina') = '14:00', 'Friday hours';
+  assert (select weekly_hours->6 from businesses where slug = 'cafe-pina') = 'null'::jsonb, 'closed on Saturday';
+  assert valid_weekly_hours(null) and not valid_weekly_hours('[1,2]'::jsonb);
+  assert not valid_weekly_hours('[null,null,null,null,null,null,{"open":"7:00","close":"14:00"}]'::jsonb), 'HH:MM';
+  raise notice 'ok   weekly hours are checked and the samples were migrated';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$update businesses set weekly_hours = '[1]' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'hours must be a valid week');
+select pg_temp.expect_error($q$update businesses set name = 'x' where id = 'a0000000-0000-4000-8000-000000000001'$q$, 'owner cannot rename the business here');
+do $$ begin
+  update businesses set phone = '02-6789012', kashrut = 'כשר, בהשגחת הרבנות' where id = 'a0000000-0000-4000-8000-000000000001';
+  update businesses set phone = '02-6789012' where id = 'a0000000-0000-4000-8000-000000000002';
+  assert (select phone from businesses where id = 'a0000000-0000-4000-8000-000000000001') = '02-6789012', 'owner sets the phone';
+  assert (select phone from businesses where id = 'a0000000-0000-4000-8000-000000000002') is null, 'not on another business';
+  raise notice 'ok   owners set phone, kashrut and hours on their own business only';
 end $$;
 reset role;
 \echo ALL DB CHECKS PASSED

@@ -1,7 +1,9 @@
 // Wallet card views shared by the wallet, rewards and business screens.
 import * as WebBrowser from 'expo-web-browser';
-import { Pressable, View } from 'react-native';
-import { durationLabel, progress, remaining, remainingLabel } from '../../supabase/functions/_shared/loyalty.ts';
+import { useState } from 'react';
+import { Linking, Pressable, View } from 'react-native';
+import { hasHours, navigationUrl, telLink, todayLine, weekLines } from '../../supabase/functions/_shared/hours.ts';
+import { FULL_TITLE, progress, remaining, remainingLabel, ruleFacts } from '../../supabase/functions/_shared/loyalty.ts';
 import type { Business, Card } from '../lib/types';
 import { colors, radius, touch } from '../theme';
 import { ChevronIcon } from './Icons';
@@ -9,7 +11,7 @@ import { Bar, Progress } from './Stamps';
 import { Txt } from './Txt';
 import { useTheme } from '../lib/appearance';
 import { OnBrand } from './surface';
-import { Avatar, Tag } from './ui';
+import { Avatar, Button, Tag } from './ui';
 
 /** "10 חותמות = קפה הפוך עלינו". */
 export function programLine(b: Pick<Business, 'program'>): string {
@@ -25,14 +27,17 @@ export function countLabel(card: Pick<Card, 'current' | 'program'>): string {
 
 export function cardA11y(card: Card): string {
   const unit = card.program.type === 'points' ? 'נקודות' : 'חותמות';
-  const ready = card.status === 'complete' ? 'ההטבה מוכנה' : remainingLabel(card.program.type, remaining(card.program, card.current));
+  const ready = card.status === 'complete' ? FULL_TITLE : remainingLabel(card.program.type, remaining(card.program, card.current));
   return `${card.business.name}, ${card.program.name}. ${card.current} מתוך ${card.program.goal} ${unit}. ${ready}.`;
 }
 
-/** The lime card (website .ui-card--lime). */
-export function HeroCard({ card, onPress }: { card: Card; onPress: () => void }) {
+/**
+ * The lime card (website .ui-card--lime). action: a visible button right under it, e.g. "לקבל את ההטבה" on the
+ * rewards tab. It sits outside the card's pressable so TalkBack reaches it as its own button.
+ */
+export function HeroCard({ card, onPress, action }: { card: Card; onPress: () => void; action?: { label: string; onPress: () => void } }) {
   const ready = card.status === 'complete';
-  return (
+  const body = (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={cardA11y(card)} accessibilityHint="פותח את פרטי הכרטיס">
       {({ pressed }) => (
         <OnBrand>
@@ -48,7 +53,7 @@ export function HeroCard({ card, onPress }: { card: Card; onPress: () => void })
           <Progress type={card.program.type} goal={card.program.goal} current={card.current} onLime animate />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, gap: 8 }}>
             <Txt kind="label" weight={700} style={{ flex: 1 }}>
-              {ready ? `ההטבה מוכנה: ${card.program.reward}` : remainingLabel(card.program.type, remaining(card.program, card.current))}
+              {ready ? `${FULL_TITLE}: ${card.program.reward}` : remainingLabel(card.program.type, remaining(card.program, card.current))}
             </Txt>
             {card.business.isSample ? <Tag label="לדוגמה" onLime /> : null}
           </View>
@@ -56,6 +61,13 @@ export function HeroCard({ card, onPress }: { card: Card; onPress: () => void })
         </OnBrand>
       )}
     </Pressable>
+  );
+  if (!action) return body;
+  return (
+    <View style={{ gap: 8 }}>
+      {body}
+      <Button label={action.label} onPress={action.onPress} hint={`${card.business.name}: ${card.program.reward}`} />
+    </View>
   );
 }
 
@@ -102,7 +114,7 @@ function ReadyDot() {
   const { t } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 }}>
-      <Txt size={11} weight={700} color={t.onAccent}>הטבה מוכנה</Txt>
+      <Txt size={12} weight={700} color={t.onAccent}>הטבה מוכנה</Txt>
     </View>
   );
 }
@@ -110,15 +122,12 @@ function ReadyDot() {
 /** The business's rules (website Solution.astro "הכללים של העסק הזה"). */
 export function RulesBox({ program }: { program: NonNullable<Business['program']> }) {
   const { t } = useTheme();
-  const unit = program.type === 'points' ? 'נק׳' : 'חותמות';
+  const unit = program.type === 'points' ? 'נקודות' : 'חותמות';
   const rows: [string, string][] = [
-    ['צבירה', program.rule],
-    ['הטבה', `${program.reward} אחרי ${program.goal} ${unit}`],
-    ['מימוש', program.redeemRule],
+    ...ruleFacts(program).map((f): [string, string] => [f.label, f.value]),
+    ['ההטבה', `${program.reward} אחרי ${program.goal} ${unit}`],
+    ['איפה מקבלים', program.redeemRule],
   ];
-  if (program.cooldownMinutes > 0) {
-    rows.push(['תדירות', `צבירה אחת בכל ${durationLabel(program.cooldownMinutes)}`]);
-  }
   return (
     <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 14 }}>
       <Txt kind="label" weight={800} style={{ marginBottom: 6 }} accessibilityRole="header">הכללים של העסק הזה</Txt>
@@ -128,19 +137,48 @@ export function RulesBox({ program }: { program: NonNullable<Business['program']
           <Txt size={15} weight={600} style={{ flexShrink: 1 }}>{v}</Txt>
         </View>
       ))}
-      <Txt kind="small" color={t.textMuted} style={{ marginTop: 6 }}>צוברים אחרי רכישה מזכה, לפי הכללים שהעסק קבע.</Txt>
     </View>
   );
 }
 
-/** Address, hours and an optional link out. */
+/**
+ * What a customer needs before walking in: today's hours (all seven days on tap, Friday included), the address
+ * with a navigation link, a phone number to call, kashrut and the website. Anything empty is not shown.
+ */
 export function PlaceInfo({ business }: { business: Business }) {
   const { t } = useTheme();
-  if (!business.address && !business.hours && !business.website) return null;
+  const [allDays, setAllDays] = useState(false);
+  const week = hasHours(business.weeklyHours) ? business.weeklyHours : null;
+  const tel = telLink(business.phone);
+  const nav = navigationUrl(business);
+  const sample = business.isSample;
+  if (!business.address && !week && !business.hours && !tel && !business.kashrut && !business.website) return null;
+  const now = new Date();
+
   return (
-    <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 14, gap: 6 }}>
-      {business.address ? <Txt size={15}><Txt size={15} weight={700}>כתובת: </Txt>{business.address}</Txt> : null}
-      {business.hours ? (
+    <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
+      {week ? (
+        <View style={{ gap: 2 }}>
+          <Txt size={15} weight={700}>{sample ? 'שעות (לדוגמה)' : 'שעות'}</Txt>
+          <Txt size={16} weight={600}>{todayLine(week, now)}</Txt>
+          <Pressable
+            onPress={() => setAllDays((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: allDays }}
+            style={{ minHeight: touch, justifyContent: 'center' }}
+          >
+            <Txt kind="label" style={{ textDecorationLine: 'underline' }}>{allDays ? 'הסתרת השבוע' : 'כל ימות השבוע'}</Txt>
+          </Pressable>
+          {allDays
+            ? weekLines(week, now).map((d) => (
+                <View key={d.day} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }} accessible accessibilityLabel={`${d.day}: ${d.text}`}>
+                  <Txt size={15} weight={d.today ? 800 : 500}>{d.day}</Txt>
+                  <Txt size={15} weight={d.today ? 800 : 500} tabular>{d.text}</Txt>
+                </View>
+              ))
+            : null}
+        </View>
+      ) : business.hours ? (
         <View>
           <Txt size={15} weight={700}>{business.hours.startsWith('שעות לדוגמה') ? 'שעות (לדוגמה)' : 'שעות'}</Txt>
           {/* One line per day range keeps Hebrew and times from mixing in one bidi run. */}
@@ -149,17 +187,26 @@ export function PlaceInfo({ business }: { business: Business }) {
           ))}
         </View>
       ) : null}
+      {business.address ? (
+        <View style={{ gap: 2 }}>
+          <Txt size={15}><Txt size={15} weight={700}>כתובת: </Txt>{business.address}</Txt>
+          {nav ? <LinkRow label="ניווט לעסק" a11y={`ניווט אל ${business.name}`} onPress={() => Linking.openURL(nav)} /> : null}
+        </View>
+      ) : null}
+      {tel ? <LinkRow label={`התקשרות: ${business.phone}`} a11y={`התקשרות אל ${business.name}, ${business.phone}`} onPress={() => Linking.openURL(tel)} /> : null}
+      {business.kashrut ? <Txt size={15}><Txt size={15} weight={700}>כשרות: </Txt>{business.kashrut}</Txt> : null}
       {business.website ? (
-        <Pressable
-          onPress={() => WebBrowser.openBrowserAsync(business.website!)}
-          accessibilityRole="link"
-          accessibilityLabel={`האתר של ${business.name}`}
-          style={{ minHeight: touch, justifyContent: 'center' }}
-        >
-          <Txt kind="label" style={{ textDecorationLine: 'underline' }}>לאתר של העסק</Txt>
-        </Pressable>
+        <LinkRow label="לאתר של העסק" a11y={`האתר של ${business.name}`} onPress={() => WebBrowser.openBrowserAsync(business.website!)} />
       ) : null}
     </View>
+  );
+}
+
+function LinkRow({ label, a11y, onPress }: { label: string; a11y: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="link" accessibilityLabel={a11y} style={{ minHeight: touch, justifyContent: 'center', alignSelf: 'flex-start' }}>
+      <Txt kind="label" style={{ textDecorationLine: 'underline' }}>{label}</Txt>
+    </Pressable>
   );
 }
 

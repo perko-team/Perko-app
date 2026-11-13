@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
-import { remaining, remainingLabel } from '../../../supabase/functions/_shared/loyalty.ts';
+import { FULL_TITLE, remaining, remainingLabel } from '../../../supabase/functions/_shared/loyalty.ts';
 import { formatDate, PlaceInfo, RulesBox } from '../../components/CardViews';
 import { Progress } from '../../components/Stamps';
 import { Txt } from '../../components/Txt';
@@ -42,11 +42,11 @@ export default function CardDetail() {
               <Progress type={card.program.type} goal={card.program.goal} current={card.current} onLime animate />
             </View>
             <Txt kind="label" size={17} weight={700} style={{ marginTop: 16 }}>
-              {card.status === 'complete' ? `ההטבה מוכנה: ${card.program.reward}` : `${remainingLabel(card.program.type, remaining(card.program, card.current))}: ${card.program.reward}`}
+              {card.status === 'complete' ? `${FULL_TITLE}: ${card.program.reward}` : `${remainingLabel(card.program.type, remaining(card.program, card.current))}: ${card.program.reward}`}
             </Txt>
             {card.business.isSample ? <View style={{ marginTop: 10 }}><Tag label="עסק לדוגמה" onLime /></View> : null}
             {card.status === 'complete' ? (
-              <Button label="מימוש ההטבה" onPress={() => router.push({ pathname: '/redeem/[id]', params: { id: card.id } })} style={{ marginTop: 18 }} hint="פותח את מסך ההטבה להצגה בקופה" />
+              <Button label="לקבל את ההטבה" onPress={() => router.push({ pathname: '/redeem/[id]', params: { id: card.id } })} style={{ marginTop: 18 }} hint="פותח את מסך ההטבה להצגה בקופה" />
             ) : null}
           </View>
           </OnBrand>

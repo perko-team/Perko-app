@@ -153,10 +153,87 @@ function wrongPinMessage(attemptsLeft: number): string {
   return `הקוד שגוי. נשארו ${attemptsLeft} ניסיונות`;
 }
 
-/** Shown when the customer is locked out at a business until midnight. */
+/** Shown when the customer is locked out at a business until midnight, or until the owner releases it. */
 function lockedMessage(): string {
-  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר';
+  return 'יותר מדי קודים שגויים. אפשר לנסות שוב מחר, או לבקש מבעלי העסק לשחרר';
 }
+
+/** What the email field says when it is not an email address. */
+const EMAIL_INVALID = 'כתובת אימייל, למשל noa@example.com';
+/** A phone number typed into the email field, while sign-in is by email only. */
+const PHONE_IN_EMAIL = 'כרגע נכנסים עם כתובת מייל. אין מייל? אפשר לבקש עזרה בקופה.';
+
+/**
+ * Why the email field cannot be used, or null when it holds an email address. An Israeli mobile number gets
+ * its own message: people who type their phone need to hear that sign-in is by email, not see an email example.
+ */
+function emailFieldProblem(input: string): string | null {
+  if (normalizeEmail(input)) return null;
+  if (normalizeIsraeliPhone(input)) return PHONE_IN_EMAIL;
+  return EMAIL_INVALID;
+}
+
+/** Under the code field until every digit is typed: why "כניסה" is not yet active. */
+function codeHint(typed: number, length: number, via: 'email' | 'sms'): string | null {
+  if (typed >= length) return null;
+  return `מקלידים את ${length} הספרות ${via === 'email' ? 'מהמייל' : 'מה-SMS'}`;
+}
+
+/** The resend line under the code: where to look first, then when a new code can be sent. */
+function resendLine(secondsLeft: number, via: 'email' | 'sms'): string {
+  const look = via === 'email' ? 'בודקים בספאם, או שולחים' : 'אפשר לשלוח';
+  return secondsLeft > 0 ? `לא קיבלתם? ${look} שוב בעוד ${secondsLeft} שניות` : 'לא קיבלתם? שליחת קוד חדש';
+}
+
+/**
+ * Fill-and-redeem: when a scan fills the card, the staff PIN typed for that scan also confirms the reward, so the
+ * staff member types once. The client sends back the collect confirmation (the stamp event's id); the server
+ * reads that event and accepts it only for the same card and customer, confirmed with a staff PIN, within this
+ * window, and never twice (a unique column on redemptions). Same window as apply_redeem_after_fill() in SQL.
+ */
+const FILL_REDEEM_WINDOW_MS = 2 * 60_000;
+
+type FillConfirmation = { cardId: string; userId: string; staffPinId: string | null; createdAt: string; used: boolean };
+
+/** Why a collect confirmation cannot redeem this card now, or null when it can. */
+function fillRedeemProblem(
+  event: FillConfirmation | null,
+  request: { cardId: string; userId: string },
+  now: Date,
+): null | 'not_found' | 'mismatch' | 'expired' | 'used' {
+  if (!event) return 'not_found';
+  if (event.cardId !== request.cardId || event.userId !== request.userId || !event.staffPinId) return 'mismatch';
+  const age = now.getTime() - new Date(event.createdAt).getTime();
+  if (!(age >= 0 && age <= FILL_REDEEM_WINDOW_MS)) return 'expired';
+  if (event.used) return 'used';
+  return null;
+}
+
+/**
+ * The card's rules as three plain facts, for the business page and the card screen: what counts as a purchase,
+ * how often one can collect, and how much a purchase is worth. Customer copy never says "צבירה" or "מימוש".
+ */
+function ruleFacts(p: { type: ProgramType; step: number; rule: string; cooldownMinutes: number }): { label: string; value: string }[] {
+  const what = p.rule.trim() || 'כל קנייה בקופה';
+  const worth = p.type === 'points'
+    ? `${p.step} נקודות על כל קנייה`
+    : p.step === 1 ? 'חותמת אחת על כל קנייה' : `${p.step} חותמות על כל קנייה`;
+  const once = p.type === 'points' ? 'נקודות פעם אחת' : 'חותמת אחת';
+  const often = p.cooldownMinutes > 0 ? `אפשר לאסוף ${once} בכל ${durationLabel(p.cooldownMinutes)}` : 'אין הגבלה: כל קנייה נספרת';
+  return [
+    { label: 'מה נחשב קנייה', value: what },
+    { label: 'כל כמה זמן', value: often },
+    { label: 'כמה מקבלים', value: worth },
+  ];
+}
+
+/** A scan of a card that is already full. */
+function fullCardMessage(reward: string): string {
+  return `הקנייה הזו לא נספרה כי הכרטיס מלא. מקבלים את ההטבה (${reward}) ומתחילים כרטיס חדש`;
+}
+
+/** The title of a full card, everywhere it shows. */
+const FULL_TITLE = 'מלא! ההטבה מחכה';
 
 // ---- _shared/token.ts
 // Signed counter QR tokens and staff PIN hashes.
@@ -295,7 +372,9 @@ type CollectedCard = {
 type PendingCollect = Omit<CollectedCard, 'cardId'> & { cardId: string | null; step: number };
 
 type CollectResponse =
-  | ({ status: 'ok'; added: number; completed: boolean } & CollectedCard)
+  // confirmation: when this scan filled the card, the id of the stamp it wrote. Sent back to redeem ('fill')
+  // within 2 minutes, it confirms the reward without a second PIN.
+  | ({ status: 'ok'; added: number; completed: boolean; confirmation?: string } & CollectedCard)
   | { status: 'cooldown'; retryAt: string; remainingMinutes: number; businessName: string }
   | ({ status: 'complete' } & CollectedCard) // the card is already full: redeem first
   | ({ status: 'pin_required' } & PendingCollect) // check passed: show the PIN pad to the staff member
@@ -305,15 +384,21 @@ type CollectResponse =
   | { status: 'inactive' } // revoked code, or the business or program is paused
   | { status: 'rate_limited' };
 
-/** A reward is used when a staff member types their PIN on the customer's phone. */
-type RedeemRequest = { action: 'confirm'; cardId: string; pin: string };
+/**
+ * A reward is used when a staff member types their PIN on the customer's phone ('confirm'), or right after the
+ * scan that filled the card, with that scan's confirmation ('fill'): checked on the server, same card, 2 minutes.
+ */
+type RedeemRequest =
+  | { action: 'confirm'; cardId: string; pin: string }
+  | { action: 'fill'; cardId: string; confirmation: string };
 
 type RedeemResponse =
   | { status: 'redeemed'; newCardId: string; reward: string }
   | { status: 'wrong_pin'; attemptsLeft: number }
   | { status: 'locked'; until: string } // too many wrong PINs today at this business
   | { status: 'not_ready' } // the card is not complete (or already redeemed)
-  | { status: 'not_found' };
+  | { status: 'not_found' }
+  | { status: 'confirmation_invalid' }; // 'fill' only: another card, too old or already used. Confirm with a PIN.
 
 // business-admin: what the owner dashboard (and scripts/admin.ts with the service role key) can do.
 type PinMode = 'shared' | 'per_staff';
@@ -325,7 +410,8 @@ type BusinessAdminRequest =
   | { action: 'staff_remove'; businessId: string; staffPinId: string }
   | { action: 'pin_reset'; businessId: string; staffPinId: string }
   | { action: 'qr_list'; businessId: string }
-  | { action: 'qr_create'; businessId: string; label?: string };
+  | { action: 'qr_create'; businessId: string; label?: string }
+  | { action: 'lockout_release'; businessId: string; alertId: string }; // clears today's PIN lockout behind the alert
 
 type CounterCode = { id: string; label: string | null; payload: string; createdAt: string };
 
@@ -465,7 +551,7 @@ async function issuePin(db: SupabaseClient, secret: string, businessId: string, 
 }
 
 // ---- redeem/index.ts
-// POST /functions/v1/redeem  { action: 'confirm', cardId, pin }
+// POST /functions/v1/redeem  { action: 'confirm', cardId, pin } | { action: 'fill', cardId, confirmation }
 // Marks the reward used and opens a new card. A staff member confirms by typing their 4-digit PIN on the
 // customer's phone; the PIN is checked here, a wrong one counts towards the customer's lockout at the business.
 
@@ -483,7 +569,25 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: 'body' }, 400);
   }
-  if (body.action !== 'confirm' || typeof body.cardId !== 'string') return json({ error: 'body' }, 400);
+  if ((body.action !== 'confirm' && body.action !== 'fill') || typeof body.cardId !== 'string') return json({ error: 'body' }, 400);
+
+  // Right after the scan that filled the card: that scan's PIN confirms the reward. Every check is in
+  // apply_redeem_after_fill (same card and customer, a staff PIN, 2 minutes, once).
+  if (body.action === 'fill') {
+    if (typeof body.confirmation !== 'string' || !UUID.test(body.confirmation) || !UUID.test(body.cardId)) {
+      return json({ status: 'confirmation_invalid' } satisfies RedeemResponse);
+    }
+    const { data, error } = await db.rpc('apply_redeem_after_fill', { p_card_id: body.cardId, p_user: user.id, p_event_id: body.confirmation });
+    if (error) {
+      // Two requests with one confirmation: the unique column refused the second.
+      if (error.code === '23505') return json({ status: 'confirmation_invalid' } satisfies RedeemResponse);
+      return json({ error: 'write' }, 500);
+    }
+    const row = (data as { new_card_id: string | null; reward: string | null; problem: string | null }[])[0];
+    if (!row || row.problem === 'not_ready') return json({ status: 'not_ready' } satisfies RedeemResponse);
+    if (row.problem) return json({ status: 'confirmation_invalid' } satisfies RedeemResponse);
+    return json({ status: 'redeemed', newCardId: row.new_card_id!, reward: row.reward! } satisfies RedeemResponse);
+  }
 
   // The card keeps the goal and reward it was opened with.
   const { data: card } = await db

@@ -2,6 +2,7 @@
 // PIN alerts: a customer locked out after too many wrong PINs, or many wrong PINs within an hour.
 import { useEffect } from 'react';
 import { useDashboard } from '../../../components/Dashboard';
+import { ReleaseButton } from '../../../components/ReleaseButton';
 import { Loading, useLoad } from '../../../components/useLoad';
 import { fmtDate, fmtTime, getAlerts, markAlertsSeen, type Alert } from '../../../lib/api';
 
@@ -18,7 +19,7 @@ export default function AlertsPage() {
     <div className="page">
       <div className="page-head">
         <h1>התראות</h1>
-        <p className="muted">לקוח שהוקלדו בטלפון שלו 3 קודים שגויים ברצף נחסם בעסק עד סוף היום. כאן רואים כל חסימה כזו.</p>
+        <p className="muted">לקוח שהוקלדו בטלפון שלו 3 קודים שגויים ברצף נחסם בעסק עד סוף היום. כאן רואים כל חסימה כזו, ואפשר לשחרר אותה אם זו הייתה טעות של הצוות.</p>
       </div>
       {loading && !data ? <Loading onRetry={reload} /> : error ? <Loading error={error} onRetry={reload} /> : null}
       {data && data.length === 0 ? <p className="note">אין התראות. הכל שקט.</p> : null}
@@ -31,6 +32,8 @@ export default function AlertsPage() {
                 <div className="muted small">{advice(a)}</div>
               </div>
               {!a.seenAt ? <span className="tag lime">חדש</span> : null}
+              {a.kind === 'pin_lockout' && a.resolvedAt ? <span className="tag">שוחרר</span> : null}
+              {a.active ? <ReleaseButton businessId={business.id} alertId={a.id} customer={a.customer} onDone={reload} /> : null}
               <span className="muted small num">{fmtDate(a.createdAt)} {fmtTime(a.createdAt)}</span>
             </li>
           ))}
@@ -41,11 +44,14 @@ export default function AlertsPage() {
 }
 
 function title(a: Alert): string {
+  if (a.kind === 'pin_lockout' && !a.active) return `${a.customer ?? 'לקוח/ה'} נחסם/ה אחרי ${a.failures ?? 3} קודים שגויים`;
   if (a.kind === 'pin_lockout') return `${a.customer ?? 'לקוח/ה'} נחסם/ה עד סוף היום אחרי ${a.failures ?? 3} קודים שגויים`;
   return `${a.failures ?? 10} קודים שגויים בשעה אחת, מלקוחות שונים`;
 }
 
 function advice(a: Alert): string {
-  if (a.kind === 'pin_lockout') return 'אם זו הייתה טעות הקלדה של הצוות, הלקוח יוכל לצבור שוב מחר. אם לא, ייתכן שמישהו ניסה לנחש את הקוד.';
+  if (a.kind === 'pin_lockout' && a.resolvedAt) return 'הנעילה שוחררה, והלקוח יכול לצבור שוב.';
+  if (a.kind === 'pin_lockout' && !a.active) return 'הנעילה הסתיימה בחצות.';
+  if (a.kind === 'pin_lockout') return 'אם זו הייתה טעות הקלדה של הצוות, אפשר לשחרר עכשיו. אם לא, ייתכן שמישהו ניסה לנחש את הקוד, והלקוח יוכל לצבור שוב מחר.';
   return 'ייתכן שמישהו מנסה לנחש את הקוד. מומלץ להחליף את הקוד בעמוד ״צוות״.';
 }

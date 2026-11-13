@@ -21,6 +21,9 @@ type Props = {
   resetKey?: number;
 };
 
+/** What the staff member reads on the customer's phone. */
+export const STAFF_LINE = 'לצוות: מקלידים את הקוד שלכם ומחזירים את הטלפון';
+
 const ROWS = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', 'del']];
 
 export function PinPad({ onComplete, busy, error, disabled, resetKey }: Props) {
@@ -33,8 +36,10 @@ export function PinPad({ onComplete, busy, error, disabled, resetKey }: Props) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the pad is the response to a server answer
     setPin('');
-    if (!error || reduce) return;
+    if (!error) return;
+    // The buzz is not motion: it plays with reduce motion too.
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
+    if (reduce) return;
     shake.setValue(0);
     Animated.sequence(
       [8, -8, 6, -6, 0].map((v) => Animated.timing(shake, { toValue: v, duration: 50, useNativeDriver: true })),
@@ -54,6 +59,7 @@ export function PinPad({ onComplete, busy, error, disabled, resetKey }: Props) {
 
   return (
     <View style={{ gap: 18, alignItems: 'center', alignSelf: 'stretch' }}>
+      <Txt kind="label" weight={700} align="center">{STAFF_LINE}</Txt>
       <Animated.View
         style={{ flexDirection: 'row', direction: 'ltr', gap: 16, height: 24, alignItems: 'center', transform: [{ translateX: shake }] }}
         accessible
@@ -68,15 +74,21 @@ export function PinPad({ onComplete, busy, error, disabled, resetKey }: Props) {
               key={i}
               style={{
                 width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: t.text,
+                // After a wrong PIN the empty dots are drawn dashed until the next digit, so the reset is visible.
+                borderStyle: error && pin.length === 0 ? 'dashed' : 'solid',
                 backgroundColor: i < pin.length ? t.text : 'transparent',
               }}
             />
           ))
         )}
       </Animated.View>
-      <Txt kind="label" align="center" color={error ? t.text : t.textMuted} accessibilityRole={error ? 'alert' : undefined} style={{ minHeight: 22 }}>
-        {error ?? 'הקוד מוקלד על ידי הצוות בקופה'}
-      </Txt>
+      {error ? (
+        <View style={{ backgroundColor: t.text, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 }}>
+          <Txt kind="label" weight={800} align="center" color={t.surface} accessibilityRole="alert">{error}</Txt>
+        </View>
+      ) : (
+        <Txt kind="label" align="center" color={t.textMuted} style={{ minHeight: 22 }}>הלקוח/ה לא מקליד/ה כאן</Txt>
+      )}
       {/* Phone keypads read left to right in every language. */}
       <View style={{ gap: 10, direction: 'ltr', alignSelf: 'stretch', opacity: disabled ? 0.4 : 1 }}>
         {ROWS.map((row, r) => (

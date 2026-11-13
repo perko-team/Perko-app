@@ -3,7 +3,7 @@
 // Purely visual: the wallet stack adds position, gestures and accessibility around it.
 import { Image, View } from 'react-native';
 import { cardFace } from '../../cardLook';
-import { remaining, remainingLabel } from '../../../supabase/functions/_shared/loyalty.ts';
+import { FULL_TITLE, remaining, remainingLabel } from '../../../supabase/functions/_shared/loyalty.ts';
 import { useTheme } from '../../lib/appearance';
 import type { Card } from '../../lib/types';
 import { colors } from '../../theme';
@@ -96,7 +96,7 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
           {ready ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: face.accentBg, borderRadius: 999, paddingStart: 8, paddingEnd: 10, paddingVertical: 5 }}>
               <CheckIcon size={14} color={face.accentFg} />
-              <Txt size={13} weight={800} color={face.accentFg}>מוכנה למימוש</Txt>
+              <Txt size={14} weight={800} color={face.accentFg}>{FULL_TITLE}</Txt>
             </View>
           ) : (
             <Count card={card} fg={face.fg} sub={face.sub} />
@@ -116,11 +116,11 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
             <View style={{ flex: 1, gap: 4 }}>
               <Txt size={15} weight={700} color={face.fg} numberOfLines={2}>
-                {ready ? `ההטבה מוכנה: ${card.program.reward}` : `${remainingLabel(card.program.type, missing)}: ${card.program.reward}`}
+                {ready ? `${FULL_TITLE}: ${card.program.reward}` : `${remainingLabel(card.program.type, missing)}: ${card.program.reward}`}
               </Txt>
               {card.business.isSample ? (
                 <View style={{ alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, backgroundColor: face.stamps === 'dark' || face.stamps === 'photo' ? colors.paperOnInk16 : colors.inkOnLime14 }}>
-                  <Txt size={11} weight={600} color={face.fg}>לדוגמה</Txt>
+                  <Txt size={12} weight={600} color={face.fg}>לדוגמה</Txt>
                 </View>
               ) : null}
             </View>
@@ -135,7 +135,7 @@ export function WalletCardFace({ card, width }: { card: Card; width: number }) {
 function Count({ card, fg, sub }: { card: Card; fg: string; sub: string }) {
   if (card.program.type === 'points') {
     return (
-      <Txt size={13} weight={600} color={sub}>
+      <Txt size={14} weight={600} color={sub}>
         <Txt size={22} weight={800} color={fg} style={{ letterSpacing: -0.7 }}>{card.current}</Txt> נק׳
       </Txt>
     );

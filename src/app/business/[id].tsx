@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { hasHours, todayLine } from '../../../supabase/functions/_shared/hours.ts';
 import { PlaceInfo, programLine, RulesBox } from '../../components/CardViews';
 import { Txt } from '../../components/Txt';
 import { Avatar, Button, LoadState, Reveal, Screen, Tag, TopBar } from '../../components/ui';
@@ -43,6 +44,7 @@ export default function BusinessPage() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt kind="title" accessibilityRole="header">{b.name}</Txt>
                 <Txt color={colors.muted}>{b.kind}</Txt>
+                {hasHours(b.weeklyHours) ? <Txt size={15} weight={700}>{todayLine(b.weeklyHours, new Date())}</Txt> : null}
               </View>
             </View>
             {b.isSample ? <Tag label="עסק לדוגמה, לא משתתף בפועל" onLime /> : null}

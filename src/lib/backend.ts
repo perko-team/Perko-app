@@ -30,6 +30,10 @@ export interface Backend {
   collect(payload: string, source: CollectSource, pin: string): Promise<CollectResponse>;
   /** The staff member confirms the reward with their PIN. */
   confirmRedeem(cardId: string, pin: string): Promise<RedeemResponse>;
+  /** Right after the scan that filled the card: that scan's confirmation stands for the PIN (2 minutes, once). */
+  redeemAfterFill(cardId: string, confirmation: string): Promise<RedeemResponse>;
+  /** Demo only: what the owner's "שחרור" in the dashboard does, so the demo can show the whole lockout story. */
+  demoReleaseLockout?(businessName: string): Promise<void>;
 }
 
 /** Thrown when a request could not reach the server. */

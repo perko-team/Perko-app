@@ -21,11 +21,19 @@ function dayLabel(iso: string): string {
   return dayName.format(new Date(iso));
 }
 
+const KIND_LABEL: Record<LogRow['kind'], string> = { stamp: 'חותמת', redeem: 'מימוש', release: 'שחרור נעילה' };
+const KIND_TAG: Record<LogRow['kind'], string> = { stamp: 'tag', redeem: 'tag lime', release: 'tag warn' };
+function detail(r: LogRow): string {
+  if (r.kind === 'redeem') return r.reward ?? '';
+  if (r.kind === 'release') return 'הלקוח/ה יכול/ה לאסוף שוב היום';
+  return r.amount === 1 ? 'חותמת אחת' : `+${r.amount}`;
+}
+
 function exportCsv(rows: LogRow[], name: string) {
   const cell = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const lines = [['תאריך', 'שעה', 'פעולה', 'פרט', 'אישר/ה', 'לקוח/ה'].map(cell).join(',')].concat(
-    rows.map((r) => [fmtDate(r.createdAt), fmtTime(r.createdAt), r.kind === 'redeem' ? 'מימוש' : 'חותמת',
-      r.kind === 'redeem' ? r.reward ?? '' : String(r.amount ?? ''), r.staffName, r.customer].map(cell).join(',')),
+    rows.map((r) => [fmtDate(r.createdAt), fmtTime(r.createdAt), KIND_LABEL[r.kind],
+      r.kind === 'stamp' ? String(r.amount ?? '') : detail(r), r.staffName, r.customer].map(cell).join(',')),
   );
   // A byte-order mark so Excel reads the Hebrew as UTF-8.
   const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
@@ -105,8 +113,8 @@ export default function LogPage() {
                       <td className="num muted">{fmtTime(r.createdAt)}</td>
                       <td>
                         <span className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
-                          {r.kind === 'redeem' ? <span className="tag lime">מימוש</span> : <span className="tag">חותמת</span>}
-                          <span style={{ fontWeight: 600 }}>{r.kind === 'redeem' ? r.reward : r.amount === 1 ? 'חותמת אחת' : `+${r.amount}`}</span>
+                          <span className={KIND_TAG[r.kind]}>{KIND_LABEL[r.kind]}</span>
+                          <span style={{ fontWeight: 600 }}>{detail(r)}</span>
                         </span>
                       </td>
                       <td>{r.staffName}</td>
@@ -124,10 +132,10 @@ export default function LogPage() {
                 <ul className="list">
                   {g.rows.map((r, i) => (
                     <li key={i} style={{ flexWrap: 'nowrap' }}>
-                      <span className={r.kind === 'redeem' ? 'tag lime' : 'tag'}>{r.kind === 'redeem' ? 'מימוש' : 'חותמת'}</span>
+                      <span className={KIND_TAG[r.kind]}>{KIND_LABEL[r.kind]}</span>
                       <span className="grow" style={{ minWidth: 0 }}>
                         <strong><bdi>{r.customer}</bdi></strong>
-                        <span className="muted tiny">{r.kind === 'redeem' ? r.reward : r.amount === 1 ? 'חותמת אחת' : `+${r.amount}`} · {r.staffName}</span>
+                        <span className="muted tiny">{detail(r)} · {r.staffName}</span>
                       </span>
                       <span className="dim tiny num">{fmtTime(r.createdAt)}</span>
                     </li>

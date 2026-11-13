@@ -1,6 +1,7 @@
 // Everything the dashboard reads and writes. Reads go through RLS and the owner RPCs
 // (supabase/migrations/20261031100200_business_members.sql); PINs and counter codes through business-admin.
 import type { BusinessAdminRequest, BusinessAdminResponse, PinMode } from '../../supabase/functions/_shared/api-types.ts';
+import { parseWeeklyHours, type WeeklyHours } from '../../supabase/functions/_shared/hours.ts';
 import { MEDIA_BUCKET, mediaUrl, type CardStyle, type StampShape } from '../../src/cardLook.ts';
 import { sb, SUPABASE_URL } from './supabase';
 
@@ -34,11 +35,12 @@ export type Program = {
 
 export type Staff = { id: string; name: string; createdAt: string };
 
-export type LogRow = { kind: 'stamp' | 'redeem'; createdAt: string; amount: number | null; reward: string | null; staffName: string; customer: string };
+export type LogRow = { kind: 'stamp' | 'redeem' | 'release'; createdAt: string; amount: number | null; reward: string | null; staffName: string; customer: string };
 
 export type Insights = { activeCustomers: number; returningCustomers: number; rewardsRedeemed: number; visits: number; visitsPerCustomer: number };
 
-export type Alert = { id: string; kind: 'pin_lockout' | 'pin_failures'; createdAt: string; seenAt: string | null; failures: number | null; customer: string | null };
+// active: a lockout that is still in force today (not released); the owner can release it.
+export type Alert = { id: string; kind: 'pin_lockout' | 'pin_failures'; createdAt: string; seenAt: string | null; failures: number | null; customer: string | null; resolvedAt: string | null; active: boolean };
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -58,6 +60,21 @@ export async function myBusinesses(): Promise<Business[]> {
       look: { style: b!.card_style, imagePath: b!.card_image_path, logoPath: b!.logo_path, overlay: b!.card_overlay, stampShape: b!.stamp_shape },
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** What customers see on the business page: hours per weekday, phone and kashrut. */
+export type BusinessInfo = { weeklyHours: WeeklyHours | null; phone: string | null; kashrut: string | null };
+
+export async function getBusinessInfo(businessId: string): Promise<BusinessInfo> {
+  const r = check(await sb().from('businesses').select('weekly_hours, phone, kashrut').eq('id', businessId).single()) as Record<string, unknown>;
+  return { weeklyHours: parseWeeklyHours(r.weekly_hours), phone: (r.phone as string) ?? null, kashrut: (r.kashrut as string) ?? null };
+}
+
+/** Saved under RLS: owners may update these columns of their own business only. */
+export async function saveBusinessInfo(businessId: string, info: BusinessInfo): Promise<void> {
+  check(await sb().from('businesses').update({
+    weekly_hours: info.weeklyHours, phone: info.phone?.trim() || null, kashrut: info.kashrut?.trim() || null,
+  }).eq('id', businessId));
 }
 
 /** Public URL of a business-media file. */
@@ -178,8 +195,18 @@ export async function getInsights(businessId: string, days: number): Promise<Ins
 }
 
 export async function getAlerts(businessId: string): Promise<Alert[]> {
-  const rows = check(await sb().rpc('business_alert_list', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
-  return rows.map((r) => ({ id: r.id, kind: r.kind, createdAt: r.created_at, seenAt: r.seen_at, failures: r.failures, customer: r.customer }));
+  const rows = check(await sb().rpc('business_alert_states', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
+  return rows.map((r) => ({
+    id: r.id, kind: r.kind, createdAt: r.created_at, seenAt: r.seen_at, failures: r.failures, customer: r.customer,
+    resolvedAt: r.resolved_at ?? null, active: r.active === true,
+  }));
+}
+
+/** Releases a customer's PIN lockout (business-admin checks that the caller owns the business). */
+export async function releaseLockout(businessId: string, alertId: string): Promise<void> {
+  const res = await businessAdmin({ action: 'lockout_release', businessId, alertId });
+  if (res.status === 'forbidden') throw new Error('רק בעלי העסק יכולים לשחרר נעילה');
+  if (res.status === 'invalid') throw new Error('הנעילה כבר שוחררה או שאינה בתוקף');
 }
 
 export async function markAlertsSeen(businessId: string): Promise<void> {

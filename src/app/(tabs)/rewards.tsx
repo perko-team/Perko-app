@@ -23,11 +23,16 @@ export default function Rewards() {
 
       {data ? (
         <>
-          <Txt kind="label" size={17} weight={700} style={{ marginBottom: 10 }} accessibilityRole="header">מוכנות למימוש</Txt>
+          <Txt kind="label" size={17} weight={700} style={{ marginBottom: 10 }} accessibilityRole="header">מחכות לכם</Txt>
           {data.ready.length ? (
             <View style={{ gap: 10 }}>
               {data.ready.map((c) => (
-                <HeroCard key={c.id} card={c} onPress={() => router.push({ pathname: '/redeem/[id]', params: { id: c.id } })} />
+                <HeroCard
+                  key={c.id}
+                  card={c}
+                  onPress={() => router.push({ pathname: '/card/[id]', params: { id: c.id } })}
+                  action={{ label: 'לקבל את ההטבה', onPress: () => router.push({ pathname: '/redeem/[id]', params: { id: c.id } }) }}
+                />
               ))}
             </View>
           ) : (
@@ -36,7 +41,7 @@ export default function Rewards() {
             </View>
           )}
 
-          <Txt kind="label" size={17} weight={700} style={{ marginTop: 26, marginBottom: 10 }} accessibilityRole="header">מומשו</Txt>
+          <Txt kind="label" size={17} weight={700} style={{ marginTop: 26, marginBottom: 10 }} accessibilityRole="header">קיבלתם</Txt>
           {data.history.length ? (
             <View style={{ backgroundColor: t.surface, borderRadius: radius.row, paddingHorizontal: 16, paddingVertical: 6 }}>
               {data.history.map((r, i) => (
@@ -47,7 +52,7 @@ export default function Rewards() {
               ))}
             </View>
           ) : (
-            <Txt color={t.textMuted}>עוד לא מומשו הטבות.</Txt>
+            <Txt color={t.textMuted}>עוד לא קיבלתם הטבות.</Txt>
           )}
         </>
       ) : null}

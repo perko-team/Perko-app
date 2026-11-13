@@ -27,7 +27,9 @@ export type CollectedCard = {
 export type PendingCollect = Omit<CollectedCard, 'cardId'> & { cardId: string | null; step: number };
 
 export type CollectResponse =
-  | ({ status: 'ok'; added: number; completed: boolean } & CollectedCard)
+  // confirmation: when this scan filled the card, the id of the stamp it wrote. Sent back to redeem ('fill')
+  // within 2 minutes, it confirms the reward without a second PIN.
+  | ({ status: 'ok'; added: number; completed: boolean; confirmation?: string } & CollectedCard)
   | { status: 'cooldown'; retryAt: string; remainingMinutes: number; businessName: string }
   | ({ status: 'complete' } & CollectedCard) // the card is already full: redeem first
   | ({ status: 'pin_required' } & PendingCollect) // check passed: show the PIN pad to the staff member
@@ -37,15 +39,21 @@ export type CollectResponse =
   | { status: 'inactive' } // revoked code, or the business or program is paused
   | { status: 'rate_limited' };
 
-/** A reward is used when a staff member types their PIN on the customer's phone. */
-export type RedeemRequest = { action: 'confirm'; cardId: string; pin: string };
+/**
+ * A reward is used when a staff member types their PIN on the customer's phone ('confirm'), or right after the
+ * scan that filled the card, with that scan's confirmation ('fill'): checked on the server, same card, 2 minutes.
+ */
+export type RedeemRequest =
+  | { action: 'confirm'; cardId: string; pin: string }
+  | { action: 'fill'; cardId: string; confirmation: string };
 
 export type RedeemResponse =
   | { status: 'redeemed'; newCardId: string; reward: string }
   | { status: 'wrong_pin'; attemptsLeft: number }
   | { status: 'locked'; until: string } // too many wrong PINs today at this business
   | { status: 'not_ready' } // the card is not complete (or already redeemed)
-  | { status: 'not_found' };
+  | { status: 'not_found' }
+  | { status: 'confirmation_invalid' }; // 'fill' only: another card, too old or already used. Confirm with a PIN.
 
 // business-admin: what the owner dashboard (and scripts/admin.ts with the service role key) can do.
 export type PinMode = 'shared' | 'per_staff';
@@ -57,7 +65,8 @@ export type BusinessAdminRequest =
   | { action: 'staff_remove'; businessId: string; staffPinId: string }
   | { action: 'pin_reset'; businessId: string; staffPinId: string }
   | { action: 'qr_list'; businessId: string }
-  | { action: 'qr_create'; businessId: string; label?: string };
+  | { action: 'qr_create'; businessId: string; label?: string }
+  | { action: 'lockout_release'; businessId: string; alertId: string }; // clears today's PIN lockout behind the alert
 
 export type CounterCode = { id: string; label: string | null; payload: string; createdAt: string };
 

@@ -1,6 +1,7 @@
 'use client';
 // First run: three steps a new owner goes through once, then the overview. Check the program, create the team
 // PIN (shown once), print the counter code. "דילוג" ends it too; the steps stay available in the menu.
+import { TeamCodeNotes } from '../../../components/TeamCodeNotes';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -142,6 +143,7 @@ export default function Onboarding() {
             <h1 style={{ fontSize: 48 }}>קוד לצוות</h1>
             <p className="muted" style={{ fontSize: 18 }}>אחרי שהלקוח סורק, מישהו מהצוות מקליד את הקוד הזה על הטלפון של הלקוח. ככה צילום של הקוד בקופה לא מספיק כדי לצבור מהבית.</p>
             <p className="dim">בהמשך אפשר לעבור לקוד אישי לכל עובד, בעמוד ״צוות״.</p>
+            <TeamCodeNotes />
             <div className="row" style={{ paddingTop: 8 }}>
               {pin || (hasTeamPin && business.pinMode === 'shared') || business.pinMode === 'per_staff' ? (
                 <button type="button" className="btn big" onClick={() => setStep(3)}>{pin ? 'רשמתי, ממשיכים' : 'ממשיכים'}</button>
