@@ -232,6 +232,9 @@ function fullCardMessage(reward: string): string {
   return `הקנייה הזו לא נספרה כי הכרטיס מלא. מקבלים את ההטבה (${reward}) ומתחילים כרטיס חדש`;
 }
 
+/** The title of a full card, everywhere it shows. */
+const FULL_TITLE = 'מלא! ההטבה מחכה';
+
 // ---- _shared/token.ts
 // Signed counter QR tokens and staff PIN hashes.
 // Uses only WebCrypto, available in Deno (Edge Functions) and Node 20+ (admin script, tests).
