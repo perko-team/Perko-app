@@ -394,10 +394,10 @@ begin
 
   perform register_nfc_rejection(tag, u, 4, 'stale');
   perform register_nfc_rejection(tag, u, 3, 'stale');
-  assert not exists (select 1 from business_alerts where kind = 'nfc_stale');
+  assert not exists (select 1 from nfc_alerts where kind = 'nfc_stale');
   perform register_nfc_rejection(tag, u, 2, 'stale');
   perform register_nfc_rejection(tag, u, 1, 'stale');
-  assert (select count(*) from business_alerts where kind = 'nfc_stale' and nfc_tag_id = tag) = 1, 'one stale alert a day';
+  assert (select count(*) from nfc_alerts where kind = 'nfc_stale' and nfc_tag_id = tag) = 1, 'one stale alert a day';
   raise notice 'ok   repeated stale taps raise one alert';
 
   assert business_open_at(null, now()) is null;
@@ -420,6 +420,7 @@ select pg_temp.expect_error($q$select apply_nfc_collect(gen_random_uuid(), 0, 1,
 select pg_temp.expect_error($q$select * from business_nfc_tags('a0000000-0000-4000-8000-000000000004')$q$, 'customer cannot list tags');
 do $$ begin
   assert (select count(*) from nfc_tags) = 0, 'customers see no tags';
+  assert (select count(*) from nfc_alerts) = 0, 'customers see no tag alerts';
   update businesses set nfc_require_pin = true;
   assert not exists (select 1 from businesses where nfc_require_pin), 'customer cannot switch PIN for NFC';
   raise notice 'ok   customers never see tags';
@@ -436,6 +437,9 @@ do $$ begin
   update businesses set nfc_require_pin = true where id = 'a0000000-0000-4000-8000-000000000004';
   assert (select nfc_require_pin from businesses where id = 'a0000000-0000-4000-8000-000000000004'), 'owner switches PIN for NFC';
   assert (select tag_label from business_alert_feed('a0000000-0000-4000-8000-000000000004') where kind = 'nfc_stale') = 'דלפק';
+  assert (select count(*) from nfc_alerts where business_id <> 'a0000000-0000-4000-8000-000000000004') = 0, 'no tag alerts of other businesses';
+  update nfc_alerts set seen_at = now();
+  assert (select seen_at from business_alert_feed('a0000000-0000-4000-8000-000000000004') where kind = 'nfc_stale') is not null, 'owner marks tag alerts seen';
   raise notice 'ok   owners list, rename and disable their own tags and switch PIN for NFC';
 end $$;
 reset role;
