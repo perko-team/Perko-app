@@ -206,7 +206,7 @@ export function createSupabaseBackend(): Backend {
       return invoke<CollectResponse>('collect', { payload, source, action: 'check' });
     },
     collect(payload, source, pin) {
-      return invoke<CollectResponse>('collect', { payload, source, action: 'collect', pin });
+      return invoke<CollectResponse>('collect', pin === null ? { payload, source, action: 'collect' } : { payload, source, action: 'collect', pin });
     },
     confirmRedeem(cardId, pin) {
       return invoke<RedeemResponse>('redeem', { action: 'confirm', cardId, pin });

@@ -34,7 +34,29 @@
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.getperko.com",
+              "path": "/t"
+            },
+            {
+              "scheme": "https",
+              "host": "getperko.com",
+              "path": "/t"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
