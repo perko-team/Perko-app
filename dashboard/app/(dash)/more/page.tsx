@@ -2,11 +2,12 @@
 // On phones: the sections that are not in the tab bar, and signing out.
 import Link from 'next/link';
 import { useDashboard } from '../../../components/Dashboard';
-import { BellIcon, ChevronIcon, ExitIcon, InfoIcon, ProgramIcon, QrIcon } from '../../../components/Icons';
+import { BellIcon, ChevronIcon, ExitIcon, InfoIcon, NfcIcon, ProgramIcon, QrIcon } from '../../../components/Icons';
 
 const LINKS = [
   { href: '/program', label: 'תוכנית', hint: 'יעד, הטבה, כללים וזמן המתנה', Icon: ProgramIcon },
   { href: '/info', label: 'פרטי העסק', hint: 'שעות פתיחה, טלפון וכשרות', Icon: InfoIcon },
+  { href: '/nfc', label: 'תגי NFC', hint: 'תגים בקופה, קוד צוות בנגיעה', Icon: NfcIcon },
   { href: '/alerts', label: 'התראות', hint: 'קודי צוות שגויים וחסימות', Icon: BellIcon },
   { href: '/qr', label: 'קוד לקופה', hint: 'הורדה והדפסה', Icon: QrIcon },
 ];

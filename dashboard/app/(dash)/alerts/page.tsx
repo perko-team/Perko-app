@@ -19,7 +19,7 @@ export default function AlertsPage() {
     <div className="page">
       <div className="page-head">
         <h1>התראות</h1>
-        <p className="muted">לקוח שהוקלדו בטלפון שלו 3 קודים שגויים ברצף נחסם בעסק עד סוף היום. כאן רואים כל חסימה כזו, ואפשר לשחרר אותה אם זו הייתה טעות של הצוות.</p>
+        <p className="muted">לקוח שהוקלדו בטלפון שלו 3 קודים שגויים ברצף נחסם בעסק עד סוף היום. כאן רואים כל חסימה כזו, ואפשר לשחרר אותה אם זו הייתה טעות של הצוות. גם נגיעות חשודות בתגי NFC מופיעות כאן.</p>
       </div>
       {loading && !data ? <Loading onRetry={reload} /> : error ? <Loading error={error} onRetry={reload} /> : null}
       {data && data.length === 0 ? <p className="note">אין התראות. הכל שקט.</p> : null}
@@ -46,6 +46,9 @@ export default function AlertsPage() {
 function title(a: Alert): string {
   if (a.kind === 'pin_lockout' && !a.active) return `${a.customer ?? 'לקוח/ה'} נחסם/ה אחרי ${a.failures ?? 3} קודים שגויים`;
   if (a.kind === 'pin_lockout') return `${a.customer ?? 'לקוח/ה'} נחסם/ה עד סוף היום אחרי ${a.failures ?? 3} קודים שגויים`;
+  if (a.kind === 'nfc_stale') return `נגיעות ישנות שוב ושוב בתג ״${a.tagLabel ?? 'NFC'}״ (${a.failures ?? 3} ביממה)`;
+  if (a.kind === 'nfc_off_hours') return `חותמת מהתג ״${a.tagLabel ?? 'NFC'}״ כשהעסק סגור`;
+  if (a.kind === 'nfc_burst') return `${a.failures ?? 8} חותמות מהתג ״${a.tagLabel ?? 'NFC'}״ תוך כמה דקות`;
   return `${a.failures ?? 10} קודים שגויים בשעה אחת, מלקוחות שונים`;
 }
 
@@ -53,5 +56,8 @@ function advice(a: Alert): string {
   if (a.kind === 'pin_lockout' && a.resolvedAt) return 'הנעילה שוחררה, והלקוח יכול לצבור שוב.';
   if (a.kind === 'pin_lockout' && !a.active) return 'הנעילה הסתיימה בחצות.';
   if (a.kind === 'pin_lockout') return 'אם זו הייתה טעות הקלדה של הצוות, אפשר לשחרר עכשיו. אם לא, ייתכן שמישהו ניסה לנחש את הקוד, והלקוח יוכל לצבור שוב מחר.';
+  if (a.kind === 'nfc_stale') return `${a.customer ?? 'מישהו'} פתח/ה קישור מנגיעה שכבר נוצלה. הקישור לא נתן חותמת, אבל ייתכן שמישהו שומר קישורים. אם זה חוזר, משביתים את התג בעמוד ״תגי NFC״.`;
+  if (a.kind === 'nfc_off_hours') return `${a.customer ?? 'לקוח/ה'} קיבל/ה חותמת מחוץ לשעות הפתיחה. אם התג לא היה אצל הצוות, כדאי לבדוק איפה הוא.`;
+  if (a.kind === 'nfc_burst') return 'הרבה נגיעות בזמן קצר בתג אחד. אם זה לא תור בקופה, ייתכן שהתג לא אצל הצוות.';
   return 'ייתכן שמישהו מנסה לנחש את הקוד. מומלץ להחליף את הקוד בעמוד ״צוות״.';
 }
