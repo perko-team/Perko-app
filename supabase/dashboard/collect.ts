@@ -143,6 +143,14 @@ function formatIsraeliPhone(e164: string): string {
   return `${local.slice(0, 3)}-${local.slice(3, 6)}-${local.slice(6)}`;
 }
 
+/**
+ * Does this collection need the staff PIN? Always for the counter QR (it can be photographed). For an NFC tap
+ * only when the business switched on "require PIN for NFC too": the tag stays with the staff.
+ */
+function pinRequired(source: 'qr' | 'nfc', nfcRequirePin: boolean): boolean {
+  return source === 'qr' || nfcRequirePin;
+}
+
 /** Wrong staff PINs allowed per customer, business and day (consecutive). Same as pin_max_failures() in SQL. */
 const PIN_MAX_FAILURES = 3;
 
@@ -343,17 +351,202 @@ function randomPin(): string {
   }
 }
 
+// ---- _shared/sun.ts
+// NTAG 424 DNA Secure Unique NFC (SUN) messages: verification of a tap, per NXP AN12196 ("NTAG 424 DNA and
+// NTAG 424 DNA TagTamper features and hints") and the NT4H2421Gx datasheet.
+//
+// Every tap makes the tag write a fresh URL: https://www.getperko.com/t?p=<PICCData>&c=<SUN MAC>
+//   p  32 hex: AES-128-CBC(SDMMetaReadKey, IV 0) of PICCDataTag || UID (7) || SDMReadCtr (3, LSB first) || pad
+//   c  16 hex: the odd bytes of AES-CMAC(KSesSDMFileReadMAC, empty input)
+//      KSesSDMFileReadMAC = AES-CMAC(SDMFileReadKey, 3C C3 00 01 00 80 || UID || SDMReadCtr)
+// Keys: SDMMetaReadKey is one key for every Perko tag (secret NFC_META_KEY); SDMFileReadKey is per tag,
+// AES-CMAC(NFC_MASTER_KEY, UID), so no per-tag key is stored. Keys only ever live in Edge Function secrets
+// (and the operator's .env for scripts/admin.ts). Never log keys, p, c or the full URL.
+//
+// WebCrypto only (Deno and Node 20+), no imports. WebCrypto has no raw AES block mode, so one block is
+// encrypted with AES-CBC (zero IV) and the padding block dropped, and decrypted with a crafted padding block.
+
+type SunTap = { uid: string; counter: number };
+
+const ZERO_IV = new Uint8Array(16);
+
+function fromHex(hex: string): Uint8Array {
+  if (!/^(?:[0-9a-fA-F]{2})*$/.test(hex)) throw new Error('not hex');
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+function toHex(bytes: Uint8Array): string {
+  let s = '';
+  for (const b of bytes) s += b.toString(16).padStart(2, '0');
+  return s.toUpperCase();
+}
+
+function xor(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] ^ b[i];
+  return out;
+}
+
+/** A copy backed by a plain ArrayBuffer, as WebCrypto's types want. */
+const own = (u: Uint8Array): Uint8Array<ArrayBuffer> => new Uint8Array(u);
+
+async function cbcKey(key: Uint8Array, usage: 'encrypt' | 'decrypt'): Promise<CryptoKey> {
+  if (key.length !== 16) throw new Error('AES-128 key must be 16 bytes');
+  return crypto.subtle.importKey('raw', own(key), { name: 'AES-CBC' }, false, [usage]);
+}
+
+/** AES-128 of one 16-byte block (ECB). */
+async function aesEncryptBlock(key: Uint8Array, block: Uint8Array): Promise<Uint8Array> {
+  const out = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv: ZERO_IV }, await cbcKey(key, 'encrypt'), own(block)));
+  return out.slice(0, 16);
+}
+
+/** AES-128 decryption of one 16-byte block (ECB). Appends a block that decrypts to valid PKCS#7 padding. */
+async function aesDecryptBlock(key: Uint8Array, block: Uint8Array): Promise<Uint8Array> {
+  const pad = await aesEncryptBlock(key, xor(new Uint8Array(16).fill(16), block));
+  const both = new Uint8Array(32);
+  both.set(block, 0);
+  both.set(pad, 16);
+  const out = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv: ZERO_IV }, await cbcKey(key, 'decrypt'), both));
+  return out.slice(0, 16);
+}
+
+function shiftLeft(b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) out[i] = ((b[i] << 1) & 0xff) | (i < 15 ? b[i + 1] >> 7 : 0);
+  return out;
+}
+
+/** AES-CMAC (NIST SP 800-38B, RFC 4493) with a 128-bit key. */
+async function aesCmac(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
+  const l = await aesEncryptBlock(key, new Uint8Array(16));
+  const k1 = shiftLeft(l);
+  if (l[0] & 0x80) k1[15] ^= 0x87;
+  const k2 = shiftLeft(k1);
+  if (k1[0] & 0x80) k2[15] ^= 0x87;
+
+  const n = Math.max(1, Math.ceil(message.length / 16));
+  const complete = message.length > 0 && message.length % 16 === 0;
+  const last = new Uint8Array(16);
+  const tail = message.slice((n - 1) * 16);
+  last.set(tail);
+  if (!complete) last[tail.length] = 0x80;
+  const lastBlock = xor(last, complete ? k1 : k2);
+
+  let x: Uint8Array = new Uint8Array(16);
+  for (let i = 0; i < n - 1; i++) x = await aesEncryptBlock(key, xor(x, message.slice(i * 16, i * 16 + 16)));
+  return aesEncryptBlock(key, xor(x, lastBlock));
+}
+
+/** The 8 bytes of a SUN MAC: bytes 1, 3, 5, ..., 15 of the full CMAC. */
+function truncateMac(full: Uint8Array): Uint8Array {
+  const out = new Uint8Array(8);
+  for (let i = 0; i < 8; i++) out[i] = full[i * 2 + 1];
+  return out;
+}
+
+/** A tag's SDMFileReadKey: AES-CMAC(master, UID). Also what the operator writes to the tag as key 2. */
+async function fileReadKey(master: Uint8Array, uid: Uint8Array): Promise<Uint8Array> {
+  return aesCmac(master, uid);
+}
+
+/** A tag's application master key (key 0), so nobody can reconfigure a provisioned tag. Never used to verify. */
+async function appMasterKey(master: Uint8Array, uid: Uint8Array): Promise<Uint8Array> {
+  const msg = new Uint8Array(uid.length + 1);
+  msg[0] = 0x00;
+  msg.set(uid, 1);
+  return aesCmac(master, msg);
+}
+
+/** Decrypts p: the UID and read counter, or null when it is not Perko PICC data (tag byte 0xC7: UID + counter). */
+async function decryptPicc(metaKey: Uint8Array, p: Uint8Array): Promise<{ uid: Uint8Array; ctr: Uint8Array } | null> {
+  if (p.length !== 16) return null;
+  const plain = await aesDecryptBlock(metaKey, p);
+  // PICCDataTag: bit 7 UID mirrored, bit 6 counter mirrored, low nibble UID length (7).
+  if (plain[0] !== 0xc7) return null;
+  return { uid: plain.slice(1, 8), ctr: plain.slice(8, 11) };
+}
+
+/** The SUN MAC for a UID and counter, with the tag's file-read key. */
+async function sunMac(fileKey: Uint8Array, uid: Uint8Array, ctr: Uint8Array): Promise<Uint8Array> {
+  const sv2 = new Uint8Array(16);
+  sv2.set([0x3c, 0xc3, 0x00, 0x01, 0x00, 0x80], 0);
+  sv2.set(uid, 6);
+  sv2.set(ctr, 13);
+  const session = await aesCmac(fileKey, sv2);
+  return truncateMac(await aesCmac(session, new Uint8Array(0)));
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a[i] ^ b[i];
+  return d === 0;
+}
+
+/**
+ * Verifies a tap. Returns the tag's UID (14 upper-case hex) and read counter, or null when p or c is malformed,
+ * was not made by a Perko tag, or was altered. The caller still has to check the counter against the last one.
+ */
+async function verifySun(
+  keys: { meta: Uint8Array; master: Uint8Array },
+  p: string,
+  c: string,
+): Promise<SunTap | null> {
+  if (!/^[0-9a-fA-F]{32}$/.test(p) || !/^[0-9a-fA-F]{16}$/.test(c)) return null;
+  const picc = await decryptPicc(keys.meta, fromHex(p));
+  if (!picc) return null;
+  const mac = await sunMac(await fileReadKey(keys.master, picc.uid), picc.uid, picc.ctr);
+  if (!sameBytes(mac, fromHex(c))) return null;
+  return { uid: toHex(picc.uid), counter: picc.ctr[0] | (picc.ctr[1] << 8) | (picc.ctr[2] << 16) };
+}
+
+/** The tap's p and c from the tag URL, the perko://t link or the bare query. Format only, nothing verified. */
+function parseNfcPayload(input: string): { p: string; c: string } | null {
+  const s = input.trim();
+  if (s.length > 300) return null;
+  const query = s.includes('?') ? s.slice(s.indexOf('?') + 1) : s;
+  const params = new Map<string, string>();
+  for (const part of query.split('&')) {
+    const i = part.indexOf('=');
+    if (i > 0) params.set(part.slice(0, i), part.slice(i + 1));
+  }
+  const p = params.get('p') ?? '';
+  const c = params.get('c') ?? '';
+  if (!/^[0-9a-fA-F]{32}$/.test(p) || !/^[0-9a-fA-F]{16}$/.test(c)) return null;
+  if (s.includes('?') && !/^(https:\/\/(www\.)?getperko\.com\/t|perko:\/\/t)\/?\?/.test(s)) return null;
+  return { p: p.toUpperCase(), c: c.toUpperCase() };
+}
+
+/** The payload the app sends to collect for a tap. */
+function nfcPayload(p: string, c: string): string {
+  return `p=${p}&c=${c}`;
+}
+
+/** The URL the tag writes, with SDM placeholders where the tag mirrors p (32 chars) and c (16 chars). */
+const NFC_URL_TEMPLATE = 'https://www.getperko.com/t?p=00000000000000000000000000000000&c=0000000000000000';
+
+/** Hex secrets of 16 bytes (NFC_META_KEY, NFC_MASTER_KEY). */
+function keyFromHex(hex: string | undefined): Uint8Array | null {
+  return hex && /^[0-9a-fA-F]{32}$/.test(hex) ? fromHex(hex) : null;
+}
+
 // ---- _shared/api-types.ts
 // Request and response shapes of the Edge Functions, shared with the app. No imports.
 
 
-/** Where a collection came from. 'nfc' is reserved: v1 only sends 'qr'. */
+/** Where a collection came from: the counter QR code, or a tap on the business's NTAG 424 DNA tag. */
 type CollectSource = 'qr' | 'nfc';
 
 /**
- * Collecting takes two calls. 'check' (no PIN) runs every test that does not need the staff member: the code,
- * the lockout, the rate limit and the cooldown, so the customer learns "come back later" before anyone types a
- * PIN. 'collect' repeats them with the 4-digit staff PIN and writes the stamp.
+ * QR: two calls. 'check' (no PIN) runs every test that does not need the staff member: the code, the lockout,
+ * the rate limit and the cooldown, so the customer learns "come back later" before anyone types a PIN.
+ * 'collect' repeats them with the 4-digit staff PIN and writes the stamp.
+ * NFC: payload is "p=<32 hex>&c=<16 hex>" from the tap. 'collect' without a PIN writes the stamp, unless the
+ * business requires a PIN for NFC too: then it answers 'pin_required' (nothing written, the tap not used) and
+ * the app sends the same tap again with the PIN.
  */
 type CollectRequest = { payload: string; source: CollectSource; action: 'check' | 'collect'; pin?: string };
 
@@ -382,7 +575,8 @@ type CollectResponse =
   | { status: 'locked'; until: string; businessName: string } // too many wrong PINs today at this business
   | { status: 'invalid' } // not a Perko code, bad signature, unknown code
   | { status: 'inactive' } // revoked code, or the business or program is paused
-  | { status: 'rate_limited' };
+  | { status: 'rate_limited' }
+  | { status: 'nfc_replayed' }; // a tap that was already used (a saved link): tap the tag again
 
 /**
  * A reward is used when a staff member types their PIN on the customer's phone ('confirm'), or right after the
@@ -554,9 +748,12 @@ async function issuePin(db: SupabaseClient, secret: string, businessId: string, 
 // POST /functions/v1/collect
 //   { payload, source: 'qr', action: 'check' }               -> may the customer collect now? (no PIN, no write)
 //   { payload, source: 'qr', action: 'collect', pin: '1234' } -> the staff member confirmed: write the stamp
-// The only way a stamp or points are added. Verifies the signed counter code, the customer's PIN lockout at
-// the business, the per-user rate limit and the cooldown, then the staff PIN, and writes atomically via
-// apply_collect(). The counter QR alone is not enough: it is printed and can be photographed.
+//   { payload: 'p=..&c=..', source: 'nfc', action: 'collect', pin? } -> a tap on the business's NFC tag
+// The only way a stamp or points are added. Verifies the signed counter code or the tag's SUN message, the
+// customer's PIN lockout at the business, the per-user rate limit and the cooldown, then the staff PIN when one
+// is needed, and writes atomically via apply_collect() / apply_nfc_collect(). The counter QR alone is not
+// enough: it is printed and can be photographed, so it always needs the PIN. A tap cannot be copied (the tag's
+// counter must grow) and the tag stays with the staff, so it needs the PIN only if the business asks for it.
 
 const CARD_COLUMNS = 'id, current, status, version, last_collected_at, type, goal, step, reward';
 
@@ -574,24 +771,58 @@ Deno.serve(async (req) => {
   } catch {
     return json({ status: 'invalid' } satisfies CollectResponse);
   }
-  if (body.source !== 'qr' || typeof body.payload !== 'string' || body.payload.length > 200) {
+  if ((body.source !== 'qr' && body.source !== 'nfc') || typeof body.payload !== 'string' || body.payload.length > 200) {
     return json({ status: 'invalid' } satisfies CollectResponse);
   }
   const writing = body.action !== 'check';
 
-  // 1. Signature. A code that does not verify is "invalid" whatever it contains.
-  const parsed = await verifyQrPayload(body.payload, qrSecrets());
-  if (!parsed) return json({ status: 'invalid' } satisfies CollectResponse);
-
-  // 2. The code, its business and the business's running program.
-  const { data: qr } = await db
-    .from('qr_codes')
-    .select('id, active, key_version, business:businesses(id, name, active)')
-    .eq('id', parsed.qrId)
-    .maybeSingle();
-  if (!qr || qr.key_version !== parsed.version) return json({ status: 'invalid' } satisfies CollectResponse);
-  const business = qr.business as unknown as { id: string; name: string; active: boolean } | null;
-  if (!qr.active || !business?.active) return json({ status: 'inactive' } satisfies CollectResponse);
+  // 1-2. Where the stamp comes from: the signed counter QR, or the tag's SUN message. Either way the business,
+  //      checked active. Nothing here logs the payload: it is a credential while it is fresh.
+  type Biz = { id: string; name: string; active: boolean; nfc_require_pin: boolean };
+  let business: Biz | null;
+  let qrId: string | null = null;
+  let tap: { tagId: string; counter: number } | null = null;
+  if (body.source === 'qr') {
+    // A code that does not verify is "invalid" whatever it contains.
+    const parsed = await verifyQrPayload(body.payload, qrSecrets());
+    if (!parsed) return json({ status: 'invalid' } satisfies CollectResponse);
+    const { data: qr } = await db
+      .from('qr_codes')
+      .select('id, active, key_version, business:businesses(id, name, active, nfc_require_pin)')
+      .eq('id', parsed.qrId)
+      .maybeSingle();
+    if (!qr || qr.key_version !== parsed.version) return json({ status: 'invalid' } satisfies CollectResponse);
+    business = qr.business as unknown as Biz | null;
+    if (!qr.active || !business?.active) return json({ status: 'inactive' } satisfies CollectResponse);
+    qrId = qr.id;
+  } else {
+    const nfc = parseNfcPayload(body.payload);
+    const meta = keyFromHex(Deno.env.get('NFC_META_KEY'));
+    const master = keyFromHex(Deno.env.get('NFC_MASTER_KEY'));
+    if (!meta || !master) return json({ error: 'nfc not configured' }, 500);
+    // A tap that was not made by a Perko tag, or was altered: "invalid" whatever it contains.
+    const sun = nfc ? await verifySun({ meta, master }, nfc.p, nfc.c) : null;
+    if (!sun) return json({ status: 'invalid' } satisfies CollectResponse);
+    const { data: tag } = await db
+      .from('nfc_tags')
+      .select('id, active, last_counter, business:businesses(id, name, active, nfc_require_pin)')
+      .eq('uid', sun.uid)
+      .maybeSingle();
+    if (!tag) return json({ status: 'invalid' } satisfies CollectResponse);
+    business = tag.business as unknown as Biz | null;
+    if (!tag.active) {
+      await db.rpc('register_nfc_rejection', { p_tag_id: tag.id, p_user: user.id, p_counter: sun.counter, p_reason: 'inactive' });
+      return json({ status: 'inactive' } satisfies CollectResponse);
+    }
+    if (!business?.active) return json({ status: 'inactive' } satisfies CollectResponse);
+    // The tag's counter only grows: an old one is a saved or copied link. Checked again when writing.
+    if (sun.counter <= tag.last_counter) {
+      await db.rpc('register_nfc_rejection', { p_tag_id: tag.id, p_user: user.id, p_counter: sun.counter, p_reason: 'stale' });
+      return json({ status: 'nfc_replayed' } satisfies CollectResponse);
+    }
+    tap = { tagId: tag.id, counter: sun.counter };
+  }
+  const needPin = pinRequired(body.source, business.nfc_require_pin);
 
   const { data: program } = await db
     .from('programs')
@@ -660,12 +891,20 @@ Deno.serve(async (req) => {
   if (decision.kind !== 'apply') {
     return json({ status: 'complete', ...pending, cardId: card!.id } satisfies CollectResponse);
   }
-  if (!writing) return json({ status: 'pin_required', ...pending, cardId: card?.id ?? null } satisfies CollectResponse);
+  // No PIN yet where one is needed: show the PIN pad. Nothing is written and an NFC tap is not used up.
+  // (The app sends an NFC tap straight as 'collect'; 'check' is the QR's first step.)
+  if (!writing || (needPin && body.pin === undefined)) {
+    return json({ status: 'pin_required', ...pending, cardId: card?.id ?? null } satisfies CollectResponse);
+  }
 
-  // 7. The staff PIN. A wrong one is logged and counts towards the lockout.
-  const pin = await checkStaffPin(db, secret('PIN_SECRET'), user.id, business.id, body.pin, 'collect');
-  if (pin.kind === 'locked') return json({ status: 'locked', until: pin.until, businessName: business.name } satisfies CollectResponse);
-  if (pin.kind === 'wrong') return json({ status: 'wrong_pin', attemptsLeft: pin.attemptsLeft, businessName: business.name } satisfies CollectResponse);
+  // 7. The staff PIN, when needed. A wrong one is logged and counts towards the lockout.
+  let staffPinId: string | null = null;
+  if (needPin) {
+    const pin = await checkStaffPin(db, secret('PIN_SECRET'), user.id, business.id, body.pin, 'collect');
+    if (pin.kind === 'locked') return json({ status: 'locked', until: pin.until, businessName: business.name } satisfies CollectResponse);
+    if (pin.kind === 'wrong') return json({ status: 'wrong_pin', attemptsLeft: pin.attemptsLeft, businessName: business.name } satisfies CollectResponse);
+    staffPinId = pin.staffPinId;
+  }
 
   // 8. The first stamp adds the card to the wallet.
   let open = card;
@@ -683,18 +922,22 @@ Deno.serve(async (req) => {
     return json({ status: 'cooldown', retryAt: new Date(Date.now() + rules.cooldownMinutes * 60_000).toISOString(), remainingMinutes: rules.cooldownMinutes, businessName: business.name } satisfies CollectResponse);
   }
 
-  const { data: applied, error } = await db.rpc('apply_collect', {
-    p_card_id: open.id,
-    p_expected_version: open.version,
-    p_current: final.current,
-    p_status: final.status,
-    p_amount: final.added,
-    p_business_id: business.id,
-    p_qr_code_id: qr.id,
-    p_source: 'qr',
-    p_staff_pin_id: pin.staffPinId,
-  });
-  if (error) return json({ error: 'write' }, 500);
+  const write = { p_card_id: open.id, p_expected_version: open.version, p_current: final.current, p_status: final.status, p_amount: final.added, p_business_id: business.id, p_staff_pin_id: staffPinId };
+  let applied: boolean;
+  if (tap) {
+    // The tag's counter moves in the same transaction as the stamp, and only upwards.
+    const { data, error } = await db.rpc('apply_nfc_collect', { ...write, p_tag_id: tap.tagId, p_counter: tap.counter });
+    if (error) return json({ error: 'write' }, 500);
+    if (data === 'stale') {
+      await db.rpc('register_nfc_rejection', { p_tag_id: tap.tagId, p_user: user.id, p_counter: tap.counter, p_reason: 'stale' });
+      return json({ status: 'nfc_replayed' } satisfies CollectResponse);
+    }
+    applied = data === 'ok';
+  } else {
+    const { data, error } = await db.rpc('apply_collect', { ...write, p_qr_code_id: qrId, p_source: 'qr' });
+    if (error) return json({ error: 'write' }, 500);
+    applied = !!data;
+  }
   if (!applied) {
     // Another scan landed between the read and the write: it took the slot, so this one is in cooldown.
     return json({ status: 'cooldown', retryAt: new Date(Date.now() + rules.cooldownMinutes * 60_000).toISOString(), remainingMinutes: rules.cooldownMinutes, businessName: business.name } satisfies CollectResponse);
@@ -710,11 +953,12 @@ Deno.serve(async (req) => {
     current: final.current,
     reward: open.reward,
   };
-  // A full card: the stamp this PIN just wrote is the confirmation for taking the reward right away.
+  // A full card: the stamp this PIN just wrote is the confirmation for taking the reward right away. A tap
+  // without a PIN confirms nothing: the reward then needs the PIN as always.
   let confirmation: string | undefined;
-  if (final.completed) {
+  if (final.completed && staffPinId) {
     const { data: ev } = await db.from('stamp_events').select('id')
-      .eq('card_id', open.id).eq('user_id', user.id).eq('staff_pin_id', pin.staffPinId)
+      .eq('card_id', open.id).eq('user_id', user.id).eq('staff_pin_id', staffPinId)
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
     confirmation = ev?.id;
   }

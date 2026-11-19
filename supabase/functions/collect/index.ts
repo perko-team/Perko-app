@@ -1,10 +1,14 @@
 // POST /functions/v1/collect
 //   { payload, source: 'qr', action: 'check' }               -> may the customer collect now? (no PIN, no write)
 //   { payload, source: 'qr', action: 'collect', pin: '1234' } -> the staff member confirmed: write the stamp
-// The only way a stamp or points are added. Verifies the signed counter code, the customer's PIN lockout at
-// the business, the per-user rate limit and the cooldown, then the staff PIN, and writes atomically via
-// apply_collect(). The counter QR alone is not enough: it is printed and can be photographed.
-import { decideCollect, isRateLimited, RATE_LIMITS } from '../_shared/loyalty.ts';
+//   { payload: 'p=..&c=..', source: 'nfc', action: 'collect', pin? } -> a tap on the business's NFC tag
+// The only way a stamp or points are added. Verifies the signed counter code or the tag's SUN message, the
+// customer's PIN lockout at the business, the per-user rate limit and the cooldown, then the staff PIN when one
+// is needed, and writes atomically via apply_collect() / apply_nfc_collect(). The counter QR alone is not
+// enough: it is printed and can be photographed, so it always needs the PIN. A tap cannot be copied (the tag's
+// counter must grow) and the tag stays with the staff, so it needs the PIN only if the business asks for it.
+import { decideCollect, isRateLimited, pinRequired, RATE_LIMITS } from '../_shared/loyalty.ts';
+import { keyFromHex, parseNfcPayload, verifySun } from '../_shared/sun.ts';
 import { verifyQrPayload } from '../_shared/token.ts';
 import type { CollectRequest, CollectResponse, CollectedCard } from '../_shared/api-types.ts';
 import { admin, cors, json, qrSecrets, requireUser, secret } from '../_shared/server.ts';
@@ -26,24 +30,58 @@ Deno.serve(async (req) => {
   } catch {
     return json({ status: 'invalid' } satisfies CollectResponse);
   }
-  if (body.source !== 'qr' || typeof body.payload !== 'string' || body.payload.length > 200) {
+  if ((body.source !== 'qr' && body.source !== 'nfc') || typeof body.payload !== 'string' || body.payload.length > 200) {
     return json({ status: 'invalid' } satisfies CollectResponse);
   }
   const writing = body.action !== 'check';
 
-  // 1. Signature. A code that does not verify is "invalid" whatever it contains.
-  const parsed = await verifyQrPayload(body.payload, qrSecrets());
-  if (!parsed) return json({ status: 'invalid' } satisfies CollectResponse);
-
-  // 2. The code, its business and the business's running program.
-  const { data: qr } = await db
-    .from('qr_codes')
-    .select('id, active, key_version, business:businesses(id, name, active)')
-    .eq('id', parsed.qrId)
-    .maybeSingle();
-  if (!qr || qr.key_version !== parsed.version) return json({ status: 'invalid' } satisfies CollectResponse);
-  const business = qr.business as unknown as { id: string; name: string; active: boolean } | null;
-  if (!qr.active || !business?.active) return json({ status: 'inactive' } satisfies CollectResponse);
+  // 1-2. Where the stamp comes from: the signed counter QR, or the tag's SUN message. Either way the business,
+  //      checked active. Nothing here logs the payload: it is a credential while it is fresh.
+  type Biz = { id: string; name: string; active: boolean; nfc_require_pin: boolean };
+  let business: Biz | null;
+  let qrId: string | null = null;
+  let tap: { tagId: string; counter: number } | null = null;
+  if (body.source === 'qr') {
+    // A code that does not verify is "invalid" whatever it contains.
+    const parsed = await verifyQrPayload(body.payload, qrSecrets());
+    if (!parsed) return json({ status: 'invalid' } satisfies CollectResponse);
+    const { data: qr } = await db
+      .from('qr_codes')
+      .select('id, active, key_version, business:businesses(id, name, active, nfc_require_pin)')
+      .eq('id', parsed.qrId)
+      .maybeSingle();
+    if (!qr || qr.key_version !== parsed.version) return json({ status: 'invalid' } satisfies CollectResponse);
+    business = qr.business as unknown as Biz | null;
+    if (!qr.active || !business?.active) return json({ status: 'inactive' } satisfies CollectResponse);
+    qrId = qr.id;
+  } else {
+    const nfc = parseNfcPayload(body.payload);
+    const meta = keyFromHex(Deno.env.get('NFC_META_KEY'));
+    const master = keyFromHex(Deno.env.get('NFC_MASTER_KEY'));
+    if (!meta || !master) return json({ error: 'nfc not configured' }, 500);
+    // A tap that was not made by a Perko tag, or was altered: "invalid" whatever it contains.
+    const sun = nfc ? await verifySun({ meta, master }, nfc.p, nfc.c) : null;
+    if (!sun) return json({ status: 'invalid' } satisfies CollectResponse);
+    const { data: tag } = await db
+      .from('nfc_tags')
+      .select('id, active, last_counter, business:businesses(id, name, active, nfc_require_pin)')
+      .eq('uid', sun.uid)
+      .maybeSingle();
+    if (!tag) return json({ status: 'invalid' } satisfies CollectResponse);
+    business = tag.business as unknown as Biz | null;
+    if (!tag.active) {
+      await db.rpc('register_nfc_rejection', { p_tag_id: tag.id, p_user: user.id, p_counter: sun.counter, p_reason: 'inactive' });
+      return json({ status: 'inactive' } satisfies CollectResponse);
+    }
+    if (!business?.active) return json({ status: 'inactive' } satisfies CollectResponse);
+    // The tag's counter only grows: an old one is a saved or copied link. Checked again when writing.
+    if (sun.counter <= tag.last_counter) {
+      await db.rpc('register_nfc_rejection', { p_tag_id: tag.id, p_user: user.id, p_counter: sun.counter, p_reason: 'stale' });
+      return json({ status: 'nfc_replayed' } satisfies CollectResponse);
+    }
+    tap = { tagId: tag.id, counter: sun.counter };
+  }
+  const needPin = pinRequired(body.source, business.nfc_require_pin);
 
   const { data: program } = await db
     .from('programs')
@@ -112,12 +150,20 @@ Deno.serve(async (req) => {
   if (decision.kind !== 'apply') {
     return json({ status: 'complete', ...pending, cardId: card!.id } satisfies CollectResponse);
   }
-  if (!writing) return json({ status: 'pin_required', ...pending, cardId: card?.id ?? null } satisfies CollectResponse);
+  // No PIN yet where one is needed: show the PIN pad. Nothing is written and an NFC tap is not used up.
+  // (The app sends an NFC tap straight as 'collect'; 'check' is the QR's first step.)
+  if (!writing || (needPin && body.pin === undefined)) {
+    return json({ status: 'pin_required', ...pending, cardId: card?.id ?? null } satisfies CollectResponse);
+  }
 
-  // 7. The staff PIN. A wrong one is logged and counts towards the lockout.
-  const pin = await checkStaffPin(db, secret('PIN_SECRET'), user.id, business.id, body.pin, 'collect');
-  if (pin.kind === 'locked') return json({ status: 'locked', until: pin.until, businessName: business.name } satisfies CollectResponse);
-  if (pin.kind === 'wrong') return json({ status: 'wrong_pin', attemptsLeft: pin.attemptsLeft, businessName: business.name } satisfies CollectResponse);
+  // 7. The staff PIN, when needed. A wrong one is logged and counts towards the lockout.
+  let staffPinId: string | null = null;
+  if (needPin) {
+    const pin = await checkStaffPin(db, secret('PIN_SECRET'), user.id, business.id, body.pin, 'collect');
+    if (pin.kind === 'locked') return json({ status: 'locked', until: pin.until, businessName: business.name } satisfies CollectResponse);
+    if (pin.kind === 'wrong') return json({ status: 'wrong_pin', attemptsLeft: pin.attemptsLeft, businessName: business.name } satisfies CollectResponse);
+    staffPinId = pin.staffPinId;
+  }
 
   // 8. The first stamp adds the card to the wallet.
   let open = card;
@@ -135,18 +181,22 @@ Deno.serve(async (req) => {
     return json({ status: 'cooldown', retryAt: new Date(Date.now() + rules.cooldownMinutes * 60_000).toISOString(), remainingMinutes: rules.cooldownMinutes, businessName: business.name } satisfies CollectResponse);
   }
 
-  const { data: applied, error } = await db.rpc('apply_collect', {
-    p_card_id: open.id,
-    p_expected_version: open.version,
-    p_current: final.current,
-    p_status: final.status,
-    p_amount: final.added,
-    p_business_id: business.id,
-    p_qr_code_id: qr.id,
-    p_source: 'qr',
-    p_staff_pin_id: pin.staffPinId,
-  });
-  if (error) return json({ error: 'write' }, 500);
+  const write = { p_card_id: open.id, p_expected_version: open.version, p_current: final.current, p_status: final.status, p_amount: final.added, p_business_id: business.id, p_staff_pin_id: staffPinId };
+  let applied: boolean;
+  if (tap) {
+    // The tag's counter moves in the same transaction as the stamp, and only upwards.
+    const { data, error } = await db.rpc('apply_nfc_collect', { ...write, p_tag_id: tap.tagId, p_counter: tap.counter });
+    if (error) return json({ error: 'write' }, 500);
+    if (data === 'stale') {
+      await db.rpc('register_nfc_rejection', { p_tag_id: tap.tagId, p_user: user.id, p_counter: tap.counter, p_reason: 'stale' });
+      return json({ status: 'nfc_replayed' } satisfies CollectResponse);
+    }
+    applied = data === 'ok';
+  } else {
+    const { data, error } = await db.rpc('apply_collect', { ...write, p_qr_code_id: qrId, p_source: 'qr' });
+    if (error) return json({ error: 'write' }, 500);
+    applied = !!data;
+  }
   if (!applied) {
     // Another scan landed between the read and the write: it took the slot, so this one is in cooldown.
     return json({ status: 'cooldown', retryAt: new Date(Date.now() + rules.cooldownMinutes * 60_000).toISOString(), remainingMinutes: rules.cooldownMinutes, businessName: business.name } satisfies CollectResponse);
@@ -162,11 +212,12 @@ Deno.serve(async (req) => {
     current: final.current,
     reward: open.reward,
   };
-  // A full card: the stamp this PIN just wrote is the confirmation for taking the reward right away.
+  // A full card: the stamp this PIN just wrote is the confirmation for taking the reward right away. A tap
+  // without a PIN confirms nothing: the reward then needs the PIN as always.
   let confirmation: string | undefined;
-  if (final.completed) {
+  if (final.completed && staffPinId) {
     const { data: ev } = await db.from('stamp_events').select('id')
-      .eq('card_id', open.id).eq('user_id', user.id).eq('staff_pin_id', pin.staffPinId)
+      .eq('card_id', open.id).eq('user_id', user.id).eq('staff_pin_id', staffPinId)
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
     confirmation = ev?.id;
   }

@@ -11,9 +11,10 @@ const shared: Record<string, string> = {
   'api-types': `${root}/_shared/api-types.ts`,
   server: `${root}/_shared/server.ts`,
   pins: `${root}/_shared/pins.ts`,
+  sun: `${root}/_shared/sun.ts`,
 };
 // What each shared file needs from the others. Order matters: a file comes after what it uses.
-const order = ['loyalty', 'token', 'api-types', 'server', 'pins'];
+const order = ['loyalty', 'token', 'sun', 'api-types', 'server', 'pins'];
 const needs: Record<string, string[]> = { 'api-types': ['loyalty'], pins: ['loyalty', 'token', 'server'] };
 
 /** Drop import lines and `export` keywords: everything ends up in one module. */
