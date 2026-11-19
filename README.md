@@ -349,7 +349,7 @@ cashier presents after payment. The customer taps it with the phone and the stam
 **On the server** (`collect`, `source: 'nfc'`):
 1. Verify `p` and `c`, then find the tag by UID (`nfc_tags`) and check that the tag and its business are active.
 2. Refuse a counter that is not higher than the tag's last accepted one. Such a tap answers `nfc_replayed` and is
-   logged in `nfc_rejections`; three in a day raise an `nfc_stale` alert.
+   logged in `nfc_rejections`; three in a day raise an `nfc_stale` alert (tag alerts live in `nfc_alerts`, shown with the PIN alerts).
 3. Run the same lockout, rate limit, cooldown and card logic as for the QR.
 4. Move the counter in the same transaction as the stamp (`apply_nfc_collect`). The stamp event records `nfc_tag_id`.
 

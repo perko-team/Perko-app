@@ -234,7 +234,9 @@ export async function releaseLockout(businessId: string, alertId: string): Promi
 }
 
 export async function markAlertsSeen(businessId: string): Promise<void> {
-  check(await sb().from('business_alerts').update({ seen_at: new Date().toISOString() }).eq('business_id', businessId).is('seen_at', null));
+  const now = new Date().toISOString();
+  check(await sb().from('business_alerts').update({ seen_at: now }).eq('business_id', businessId).is('seen_at', null));
+  check(await sb().from('nfc_alerts').update({ seen_at: now }).eq('business_id', businessId).is('seen_at', null));
 }
 
 const dateFmt = new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric', year: '2-digit' });
