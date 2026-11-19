@@ -3,8 +3,9 @@
 // but nothing here is secure: codes are not signature-checked, any 6-digit SMS code is accepted and the staff PIN
 // of every sample business is DEMO_PIN.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { decideCollect, fillRedeemProblem, isRateLimited, PIN_MAX_FAILURES, RATE_LIMITS } from '../../supabase/functions/_shared/loyalty.ts';
+import { decideCollect, fillRedeemProblem, isRateLimited, PIN_MAX_FAILURES, pinRequired, RATE_LIMITS } from '../../supabase/functions/_shared/loyalty.ts';
 import type { WeeklyHours } from '../../supabase/functions/_shared/hours.ts';
+import { nfcPayload, parseNfcPayload } from '../../supabase/functions/_shared/sun.ts';
 import { parseQrPayload } from '../../supabase/functions/_shared/token.ts';
 import { DEFAULT_LOOK } from '../cardLook';
 import { AuthError, type AuthListener, type Backend } from './backend';
@@ -58,6 +59,19 @@ export const SAMPLE_BUSINESSES: Business[] = [
 ];
 
 /** The counter code of each sample business in demo mode (business index + 1 → qr id). */
+/**
+ * A demo tap on sample business n's tag: a fresh p each time (as a real tag's counter makes it), the business
+ * in its third hex digit. Not a real SUN message: demo mode checks nothing but reuse.
+ */
+export function demoNfcPayload(n: number): string {
+  let rand = '';
+  for (let i = 0; i < 29; i++) rand += Math.floor(Math.random() * 16).toString(16);
+  let mac = '';
+  for (let i = 0; i < 16; i++) mac += Math.floor(Math.random() * 16).toString(16);
+  return nfcPayload(`DE${n.toString(16)}${rand}`.toUpperCase(), mac.toUpperCase());
+}
+const demoTagBusiness = (p: string): Business | null => (p.startsWith('DE') ? SAMPLE_BUSINESSES[parseInt(p[2], 16) - 1] ?? null : null);
+
 export const demoQrPayload = (n: number) => `perko://c/v1.c0000000-0000-4000-8000-00000000000${n}.demo-not-signed-000000`;
 const qrToBusiness = (qrId: string) => {
   const m = /^c0000000-0000-4000-8000-00000000000(\d)$/.exec(qrId);
@@ -71,6 +85,8 @@ type State = {
   cards: StoredCard[];
   events: StoredEvent[];
   redemptions: { id: string; reward: string; businessName: string; createdAt: string }[];
+  /** NFC taps already used (their p), as the tag counter on the server. */
+  usedTaps?: string[];
   /** Consecutive wrong PINs per business, today (local day), as on the server. */
   pinFailures?: Record<string, { day: string; count: number }>;
 };
@@ -165,12 +181,23 @@ export function createDemoBackend(): Backend {
     await save();
   };
 
-  /** collect with pin === null is the 'check' step: nothing is written. */
-  const collectDemo = async (payload: string, _source: CollectSource, pin: string | null): Promise<CollectResponse> => {
+  /** write false is the QR 'check' step: nothing is written. Demo tags never need a PIN (as by default). */
+  const collectDemo = async (payload: string, source: CollectSource, pin: string | null, write: boolean): Promise<CollectResponse> => {
     await delay();
     const s = await signedIn();
-    const parsed = parseQrPayload(payload);
-    const business = parsed && qrToBusiness(parsed.qrId);
+    let business: Business | null;
+    let tap: string | null = null;
+    if (source === 'nfc') {
+      const t = parseNfcPayload(payload);
+      business = t ? demoTagBusiness(t.p) : null;
+      if (!business?.program) return { status: 'invalid' };
+      // As the tag's counter on the server: a tap is used once.
+      if (s.usedTaps?.includes(t!.p)) return { status: 'nfc_replayed' };
+      tap = t!.p;
+    } else {
+      const parsed = parseQrPayload(payload);
+      business = parsed && qrToBusiness(parsed.qrId);
+    }
     if (!business?.program) return { status: 'invalid' };
     const p = business.program;
     if (failures(s, business.id) >= PIN_MAX_FAILURES) return { status: 'locked', until: midnight(), businessName: business.name };
@@ -190,10 +217,14 @@ export function createDemoBackend(): Backend {
     const d = decideCollect({ ...p }, { current: existing?.current ?? 0, status: existing?.status ?? 'active', lastCollectedAt }, now);
     if (d.kind === 'cooldown') return { status: 'cooldown', retryAt: d.retryAt, remainingMinutes: d.remainingMinutes, businessName: business.name };
     if (d.kind !== 'apply') return { status: 'complete', ...info, cardId: existing!.id };
-    if (pin === null) return { status: 'pin_required', ...info, step: p.step, cardId: existing?.id ?? null };
+    const needPin = pinRequired(source, false);
+    if (!write || (needPin && pin === null)) return { status: 'pin_required', ...info, step: p.step, cardId: existing?.id ?? null };
 
-    const refused = await checkPin(s, business.id, pin);
-    if (refused) return { ...refused, businessName: business.name };
+    if (needPin) {
+      const refused = await checkPin(s, business.id, pin!);
+      if (refused) return { ...refused, businessName: business.name };
+    }
+    if (tap) s.usedTaps = [...(s.usedTaps ?? []).slice(-200), tap];
     let card = existing;
     if (!card) {
       card = { id: uid(), programId: p.id, current: 0, status: 'active', createdAt: now.toISOString(), lastCollectedAt: null, completedAt: null };
@@ -203,7 +234,7 @@ export function createDemoBackend(): Backend {
     const event = { id: uid(), cardId: card.id, amount: d.added, createdAt: now.toISOString() };
     s.events.push(event);
     await save();
-    return { status: 'ok', ...info, cardId: card.id, current: d.current, added: d.added, completed: d.completed, confirmation: d.completed ? event.id : undefined };
+    return { status: 'ok', ...info, cardId: card.id, current: d.current, added: d.added, completed: d.completed, confirmation: d.completed && needPin ? event.id : undefined };
   };
 
   /** Marks the full card redeemed and starts a new one, as apply_redeem() does. */
@@ -294,10 +325,10 @@ export function createDemoBackend(): Backend {
     },
 
     checkCollect(payload, source) {
-      return collectDemo(payload, source, null);
+      return collectDemo(payload, source, null, false);
     },
     collect(payload, source, pin) {
-      return collectDemo(payload, source, pin);
+      return collectDemo(payload, source, pin, true);
     },
 
     async confirmRedeem(cardId, pin) {

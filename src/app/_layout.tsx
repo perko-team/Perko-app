@@ -99,6 +99,7 @@ function Routes() {
           <Stack.Screen name="card/[id]" />
           <Stack.Screen name="redeem/[id]" options={{ contentStyle: { backgroundColor: t.surface } }} />
           <Stack.Screen name="c/[token]" />
+          <Stack.Screen name="t" />
         </Stack.Protected>
       </Stack>
     </>

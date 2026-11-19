@@ -19,6 +19,8 @@ export type Business = {
   active: boolean;
   onboardedAt: string | null;
   look: LookSettings;
+  /** NFC taps need the staff PIN too (businesses.nfc_require_pin). */
+  nfcRequirePin: boolean;
 };
 
 export type Program = {
@@ -40,7 +42,8 @@ export type LogRow = { kind: 'stamp' | 'redeem' | 'release'; createdAt: string; 
 export type Insights = { activeCustomers: number; returningCustomers: number; rewardsRedeemed: number; visits: number; visitsPerCustomer: number };
 
 // active: a lockout that is still in force today (not released); the owner can release it.
-export type Alert = { id: string; kind: 'pin_lockout' | 'pin_failures'; createdAt: string; seenAt: string | null; failures: number | null; customer: string | null; resolvedAt: string | null; active: boolean };
+export type AlertKind = 'pin_lockout' | 'pin_failures' | 'nfc_stale' | 'nfc_off_hours' | 'nfc_burst';
+export type Alert = { id: string; kind: AlertKind; createdAt: string; seenAt: string | null; failures: number | null; customer: string | null; resolvedAt: string | null; active: boolean; tagLabel: string | null };
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -50,7 +53,7 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
 /** The businesses the signed-in user owns. */
 export async function myBusinesses(): Promise<Business[]> {
   const rows = check(await sb().from('business_members')
-    .select('role, business:businesses(id, name, slug, initial, pin_mode, active, onboarded_at, card_style, card_image_path, logo_path, card_overlay, stamp_shape)')
+    .select('role, business:businesses(id, name, slug, initial, pin_mode, active, onboarded_at, card_style, card_image_path, logo_path, card_overlay, stamp_shape, nfc_require_pin)')
     .eq('role', 'owner'));
   return (rows as unknown as { business: Record<string, any> | null }[])
     .filter((r) => r.business)
@@ -58,6 +61,7 @@ export async function myBusinesses(): Promise<Business[]> {
     .map(({ business: b }): Business => ({
       id: b!.id, name: b!.name, slug: b!.slug, initial: b!.initial, pinMode: b!.pin_mode, active: b!.active, onboardedAt: b!.onboarded_at,
       look: { style: b!.card_style, imagePath: b!.card_image_path, logoPath: b!.logo_path, overlay: b!.card_overlay, stampShape: b!.stamp_shape },
+      nfcRequirePin: b!.nfc_require_pin === true,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
@@ -195,11 +199,31 @@ export async function getInsights(businessId: string, days: number): Promise<Ins
 }
 
 export async function getAlerts(businessId: string): Promise<Alert[]> {
-  const rows = check(await sb().rpc('business_alert_states', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
+  const rows = check(await sb().rpc('business_alert_feed', { p_business: businessId, p_limit: 200 })) as Record<string, never>[];
   return rows.map((r) => ({
     id: r.id, kind: r.kind, createdAt: r.created_at, seenAt: r.seen_at, failures: r.failures, customer: r.customer,
-    resolvedAt: r.resolved_at ?? null, active: r.active === true,
+    resolvedAt: r.resolved_at ?? null, active: r.active === true, tagLabel: r.tag_label ?? null,
   }));
+}
+
+/** A business's NFC tag. The read counter stays on the server; owners see the last tap and refused taps. */
+export type NfcTag = { id: string; uid: string; label: string | null; active: boolean; lastTapAt: string | null; createdAt: string; taps7d: number; rejected7d: number };
+
+export async function getNfcTags(businessId: string): Promise<NfcTag[]> {
+  const rows = check(await sb().rpc('business_nfc_tags', { p_business: businessId })) as Record<string, never>[];
+  return rows.map((r) => ({
+    id: r.id, uid: r.uid, label: r.label, active: r.active, lastTapAt: r.last_tap_at, createdAt: r.created_at, taps7d: r.taps_7d, rejected7d: r.rejected_7d,
+  }));
+}
+
+/** Disable or enable a tag, or rename it (RLS: the business's owners only; the counter cannot be touched). */
+export async function updateNfcTag(tagId: string, patch: { active?: boolean; label?: string | null }): Promise<void> {
+  check(await sb().from('nfc_tags').update(patch).eq('id', tagId));
+}
+
+/** "Require PIN for NFC too": off by default, since the tag stays with the staff. */
+export async function setNfcRequirePin(businessId: string, on: boolean): Promise<void> {
+  check(await sb().from('businesses').update({ nfc_require_pin: on }).eq('id', businessId));
 }
 
 /** Releases a customer's PIN lockout (business-admin checks that the caller owns the business). */

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ActivityIndicator, Animated, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cooldownMessage, FULL_TITLE, fullCardMessage, lockedMessage, remaining, remainingLabel, wrongPinMessage } from '../../supabase/functions/_shared/loyalty.ts';
-import type { Business, PendingCollect } from '../lib/types';
+import type { Business, CollectSource, PendingCollect } from '../lib/types';
 import { NetworkError } from '../lib/backend';
 import { CloseIcon } from '../components/Icons';
 import { PinPad } from '../components/PinPad';
@@ -17,7 +17,7 @@ import { useTheme } from '../lib/appearance';
 import { api } from '../lib/api';
 import { checkCollect, confirmCollect, type CollectOutcome } from '../lib/collect';
 import { DEMO } from '../lib/config';
-import { demoQrPayload, SAMPLE_BUSINESSES } from '../lib/demoBackend';
+import { demoNfcPayload, demoQrPayload, SAMPLE_BUSINESSES } from '../lib/demoBackend';
 import { useReduceMotion } from '../lib/hooks';
 import { colors, gutter, motion, radius, touch } from '../theme';
 
@@ -25,32 +25,37 @@ const FRAME = 248;
 
 export default function Scan() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ payload?: string }>();
+  // payload: a counter code opened as a perko:// link. nfc: a tap on the business's tag (from the t route).
+  const params = useLocalSearchParams<{ payload?: string; nfc?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<CollectOutcome | null>(null);
   // The scan may add a stamp: the staff member confirms with their PIN on this phone.
-  const [pending, setPending] = useState<{ payload: string; info: PendingCollect } | null>(null);
+  const [pending, setPending] = useState<{ payload: string; info: PendingCollect; source: CollectSource } | null>(null);
   const lastPayload = useRef<string | null>(null);
+  const lastSource = useRef<CollectSource>('qr');
   const locked = useRef(false);
   const demoIndex = useRef(0);
 
-  const run = useCallback(async (payload: string) => {
+  const run = useCallback(async (payload: string, source: CollectSource = 'qr') => {
     if (locked.current) return;
     locked.current = true;
     lastPayload.current = payload;
+    lastSource.current = source;
     setBusy(true);
-    const result = await checkCollect(payload, 'qr');
+    // A QR scan asks first (no PIN yet); an NFC tap writes at once unless the business wants a PIN for NFC too.
+    const result = source === 'nfc' ? await confirmCollect(payload, null, 'nfc') : await checkCollect(payload, 'qr');
     setBusy(false);
-    if (result.status === 'pin_required') setPending({ payload, info: result });
+    if (result.status === 'pin_required') setPending({ payload, info: result, source });
     else setOutcome(result);
   }, []);
 
-  // Opened from a perko:// link (the counter code scanned with the phone's own camera app).
+  // Opened from a perko:// link (the counter code scanned with the phone's own camera app), or from a tag tap.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- run() handles the link: it shows a spinner, then the answer
-    if (params.payload) run(params.payload);
-  }, [params.payload, run]);
+    if (params.nfc) run(params.nfc, 'nfc');
+    else if (params.payload) run(params.payload);
+  }, [params.payload, params.nfc, run]);
 
   const onScanned = (r: BarcodeScanningResult) => {
     if (!outcome && !pending && !busy) run(r.data);
@@ -67,7 +72,7 @@ export default function Scan() {
     locked.current = false;
     setOutcome(null);
     setPending(null);
-    if (p) run(p);
+    if (p) run(p, lastSource.current);
   };
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -114,6 +119,20 @@ export default function Scan() {
         )}
         {DEMO && !outcome && !pending ? (
           <Button
+            label="נגיעה בתג NFC לדוגמה"
+            variant="quiet"
+            small
+            busy={busy}
+            hint="מצב הדגמה: מדמה נגיעה בתג של עסק לדוגמה. בלי קוד צוות"
+            onPress={() => {
+              const n = (demoIndex.current++ % SAMPLE_BUSINESSES.length) + 1;
+              locked.current = false;
+              run(demoNfcPayload(n), 'nfc');
+            }}
+          />
+        ) : null}
+        {DEMO && !outcome && !pending ? (
+          <Button
             label="סריקת קוד לדוגמה"
             variant="lime"
             small
@@ -132,6 +151,7 @@ export default function Scan() {
         <PinSheet
           payload={pending.payload}
           info={pending.info}
+          source={pending.source}
           onDone={(result) => {
             setPending(null);
             setOutcome(result);
@@ -207,7 +227,7 @@ function Sheet({ children }: { children: ReactNode }) {
  * "מציגים לקופאי/ת": the customer hands the phone to the staff member, who types their PIN. Only then is the
  * stamp written. A photo of the counter code is not enough on its own.
  */
-function PinSheet({ payload, info, onDone, onCancel }: { payload: string; info: PendingCollect; onDone: (o: CollectOutcome) => void; onCancel: () => void }) {
+function PinSheet({ payload, info, source, onDone, onCancel }: { payload: string; info: PendingCollect; source: CollectSource; onDone: (o: CollectOutcome) => void; onCancel: () => void }) {
   const { t } = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +236,7 @@ function PinSheet({ payload, info, onDone, onCancel }: { payload: string; info: 
 
   const submit = async (pin: string) => {
     setBusy(true);
-    const result = await confirmCollect(payload, pin, 'qr');
+    const result = await confirmCollect(payload, pin, source);
     setBusy(false);
     if (result.status === 'wrong_pin') {
       setError(wrongPinMessage(result.attemptsLeft));
@@ -353,7 +373,9 @@ function content(o: CollectOutcome): Content {
       return { title: 'כבר נאספה חותמת', sub: `${o.businessName}. ${cooldownMessage(o.remainingMinutes)}.`, primary: 'done' };
     case 'invalid':
     case 'not_perko':
-      return { title: 'הקוד לא מוכר', sub: 'זה לא קוד Perko פעיל. סורקים את הקוד שבקופה של עסק משתתף.', primary: 'again' };
+      return { title: 'הקוד לא מוכר', sub: 'זה לא קוד או תג Perko פעיל. סורקים את הקוד שבקופה, או נוגעים שוב בתג של העסק.', primary: 'again' };
+    case 'nfc_replayed':
+      return { title: 'הנגיעה הזו כבר נוצלה', sub: 'כל נגיעה בתג טובה פעם אחת. מבקשים מהצוות ונוגעים שוב בתג עם הטלפון.', primary: 'done' };
     case 'inactive':
       return { title: 'הקוד לא פעיל', sub: 'הקוד הזה הושבת, או שהעסק לא נותן חותמות כרגע. אפשר לשאול את הצוות בקופה.', primary: 'again' };
     case 'locked':

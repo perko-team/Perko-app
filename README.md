@@ -16,8 +16,9 @@ marketing site, labelled "לדוגמה" in the app. None of them is a participan
   Dark mode uses only brand colours (ink background, ink-raised surfaces, off-white text, lime accent with ink text);
   loyalty cards and lime brand cards keep their own colours. Roles live in `src/theme.ts` (`lightPalette`,
   `darkPalette`), read with `useTheme()`; `OnBrand` marks lime/off-white cards whose colours never change.
-- QR collection only (no NFC in v1). Every stamp and every reward is confirmed by a staff member typing a 4-digit PIN
-  on the customer's phone (see [Staff PIN at the counter](#staff-pin-at-the-counter)).
+- Two ways to collect: the counter QR code, where a staff member confirms every stamp with a 4-digit PIN on the
+  customer's phone (see [Staff PIN at the counter](#staff-pin-at-the-counter)), and a tap on the business's NFC tag
+  (NTAG 424 DNA), which needs no PIN by default (see [NFC collection](#nfc-collection)). Every reward needs the PIN.
 - Business owners manage their program, team PINs, log, insights, alerts and counter card in the
   [business dashboard](#business-dashboard) (`dashboard/`, Next.js).
 
@@ -44,7 +45,7 @@ Perko-app/
   src/tokens.ts            the platform-free part (colours, radii, light/dark roles), shared with dashboard/
   src/components/          Wordmark/AppIcon, stamps/meter, cards, buttons, icons
   src/components/wallet/   the wallet card (WalletCard), the gesture stack (WalletStack), the TalkBack list (WalletList)
-  src/lib/collect.ts       the one client entry point for collecting (QR now, NFC later)
+  src/lib/collect.ts       the one client entry point for collecting (QR and NFC)
   src/lib/backend.ts       data-layer interface; supabaseBackend.ts (real) and demoBackend.ts (local sample data)
   supabase/migrations/     schema, RLS, atomic write functions
   supabase/seed.sql        the five sample businesses (is_sample = true)
@@ -78,7 +79,7 @@ flow (scan → card complete → redeem → new card) can be tried in a minute.
 ```sh
 npm run typecheck       # tsc, app + shared code + scripts
 npm run lint            # ESLint (eslint-config-expo, React Compiler rules)
-npm test                # unit tests: stamps/points, cooldown, rate limit, QR signatures, PIN hashing, phone numbers
+npm test                # unit tests: stamps/points, cooldown, rate limit, QR signatures, PIN hashing, NFC SUN (AN12196), ...
 scripts/test-db.sh      # schema, RLS, PIN lockout, owner access, write functions on a throwaway local Postgres (needs psql)
 npx deno check supabase/functions/*/index.ts   # Edge Functions (Deno)
 npx expo-doctor
@@ -229,8 +230,10 @@ phones. A new owner first goes through a three-step guide (program, team PIN, co
 6. **יומן:** stamps and redemptions grouped by day, with time (Israel), staff name or "צוות", and the customer by
    name, the last 4 digits of their phone or a masked email; lockout releases too; filters by kind, staff and
    period; CSV export.
-7. **התראות:** PIN lockouts (with "שחרור" while active) and bursts of wrong PINs.
-8. **קוד לקופה:** the counter card as PNG and A6 PDF (the same card as `qr:print`, drawn by
+7. **תגי NFC:** the business's tags (name, last tap, stamps and refused taps in 7 days), disable and enable, the
+   "גם קוד" switch for NFC, and suspicious taps. See [NFC collection](#nfc-collection).
+8. **התראות:** PIN lockouts (with "שחרור" while active) and bursts of wrong PINs.
+9. **קוד לקופה:** the counter card as PNG and A6 PDF (the same card as `qr:print`, drawn by
    `dashboard/lib/counterCard.ts`), and extra codes.
 
 Access: `business_members` (user, business, role `owner` | `staff`; staff is reserved and has no dashboard access
@@ -329,11 +332,124 @@ A counter code encodes `perko://c/v<version>.<qr uuid>.<signature>`. Opening it 
 deep-links into the scan screen. To rotate: set `QR_SECRET_V2`, print new codes with `QR_KEY_VERSION=2`, and remove
 `QR_SECRET_V1` once the old prints are gone. To revoke one code: `qr:revoke` (sets `active = false`).
 
-### Adding NFC later
+## NFC collection
 
-`src/lib/collect.ts` is the only place the app collects: add an NFC reader that calls `collect(payload, 'nfc')`.
-On the server, accept `source: 'nfc'` in `collect` (the column already allows it). Screens and result handling stay
-as they are.
+A business can put an NTAG 424 DNA tag (25 mm, anti-metal) with its staff: behind the counter or on a holder the
+cashier presents after payment. The customer taps it with the phone and the stamp is added.
+
+**How a tap works.** The tag uses SUN (Secure Dynamic Messaging): on every read it rewrites its NDEF URL as
+`https://www.getperko.com/t?p=<32 hex>&c=<16 hex>`.
+- `p` is the encrypted PICC data: AES-128-CBC (zero IV) with the SDM meta-read key over the tag's 7-byte UID and its
+  3-byte read counter, which the tag increments itself on every tap.
+- `c` is the SUN MAC: a session key `AES-CMAC(SDMFileReadKey, 3CC300010080 || UID || counter)`, then
+  `AES-CMAC(session key, empty input)`, keeping bytes 1, 3, ..., 15.
+- `supabase/functions/_shared/sun.ts` implements this per NXP AN12196 and the NT4H2421Gx datasheet, tested against
+  the AN12196 worked example (`tests/sun.test.ts`) and RFC 4493.
+
+**On the server** (`collect`, `source: 'nfc'`):
+1. Verify `p` and `c`, then find the tag by UID (`nfc_tags`) and check that the tag and its business are active.
+2. Refuse a counter that is not higher than the tag's last accepted one. Such a tap answers `nfc_replayed` and is
+   logged in `nfc_rejections`; three in a day raise an `nfc_stale` alert.
+3. Run the same lockout, rate limit, cooldown and card logic as for the QR.
+4. Move the counter in the same transaction as the stamp (`apply_nfc_collect`). The stamp event records `nfc_tag_id`.
+
+A stamp outside the business's weekly hours raises `nfc_off_hours`, and 8 stamps from one tag within 10 minutes
+raise `nfc_burst`.
+
+**PIN.** None by default: the tag is with the staff, so without a purchase there is no tap. In the dashboard
+(תגי NFC) a business can switch on "גם קוד" (`businesses.nfc_require_pin`). The tap then answers `pin_required`
+without using up the counter, and the app sends the same tap again with the PIN. The QR always needs the PIN, and
+so does every reward. A tap without a PIN never confirms fill-and-redeem.
+
+**Keys.** Two Edge Function secrets, 16 random bytes each as 32 hex characters:
+- `NFC_META_KEY` is the SDM meta-read key (key 1), the same on every Perko tag.
+- `NFC_MASTER_KEY` derives each tag's keys, so no per-tag key is stored:
+  - key 2, the SDM file-read key: `AES-CMAC(NFC_MASTER_KEY, UID)`.
+  - key 0, the application master key: `AES-CMAC(NFC_MASTER_KEY, 00 || UID)`, so nobody else can reconfigure a
+    provisioned tag.
+
+Make them with `openssl rand -hex 16`, set them under Edge Functions → Secrets, and keep a copy only in the
+operator's `.env` for `scripts/admin.ts`. Never in the app, the repository, logs or chat. Nothing logs `p`, `c` or
+the full tap URL. Rotating `NFC_MASTER_KEY` means re-provisioning every tag (their keys 0 and 2 change), so treat it
+as permanent.
+
+**Opening the app from a tap.**
+- Android: an intent filter for `https://(www.)getperko.com/t` without `autoVerify` (the system may ask which app
+  opens it), plus `perko://t`. Both open the `t` route, which hands the tap to the scan screen and
+  `src/lib/collect.ts`, and the result sheet is the same as for a scan.
+- iPhone: there is no Apple Developer account yet, so no Universal Links. iOS reads the tag in the background (it
+  holds a web URL) and opens the `/t` page of the marketing site (Perko-marketing `src/pages/t.astro`). That page
+  shows "פתחו ב-Perko", a `perko://t?p=..&c=..` link with the same parameters. It verifies nothing and sends `p`
+  and `c` nowhere else.
+- A customer who is signed out lands on sign-in, and the tap is not kept: they tap again after signing in.
+
+**Switching to Universal Links / App Links later**, so a tap opens the app directly:
+1. iOS: with an Apple Developer account, serve `https://www.getperko.com/.well-known/apple-app-site-association`
+   (JSON, no extension, `Content-Type: application/json`). It needs `applinks.details[].appIDs: ["<TeamID>.org.perko.app"]`
+   and `components: [{ "/": "/t" }]`.
+2. Add `"associatedDomains": ["applinks:www.getperko.com", "applinks:getperko.com"]` under `ios` in `app.json`.
+3. Android: serve `https://www.getperko.com/.well-known/assetlinks.json` with package `org.perko.app` and the
+   SHA-256 fingerprint of the signing certificate (EAS: `eas credentials`; Play App Signing: the Play Console key),
+   then set `"autoVerify": true` on the intent filter.
+4. Rebuild the app. The `/t` page stays as the fallback for phones without the app.
+
+**Threat model.**
+- Blocked:
+  - A photo or copy of the tag: the tag is never read by a camera, and its keys cannot be read out.
+  - A saved, shared or replayed tap URL: the counter must grow, so each tap stamps at most once.
+  - A forged URL: it needs keys 1 and 2.
+  - A tag moved to another business: the UID is bound to one business.
+  - A lost tag: the owner disables it in the dashboard.
+- Not blocked:
+  - A tap without a purchase. Anyone who can touch the tag can collect: that is why the tag stays with the staff, and
+    why the cooldown, the rate limit and the off-hours and burst alerts exist. A business whose tag must be on the
+    counter switches on the PIN.
+  - A customer who taps, does not open the app, and keeps the URL to use once later: it works once, within the
+    cooldown, and only until the next tap on that tag (a later tap raises the counter past it).
+
+### Provisioning a tag (operator)
+
+Tags are configured once by the Perko operator with **NXP TagWriter** (Android, free). Owners never see keys. An
+in-app provisioning screen (react-native-nfc-manager, a development build) may replace this later.
+
+**Changed keys cannot be recovered: try the whole flow on one tag first.**
+
+1. Read the factory-new tag in TagWriter and note its UID (7 bytes, e.g. `04AABBCCDDEE80`). Its keys are all `00`.
+2. On your computer, with `NFC_META_KEY` and `NFC_MASTER_KEY` in `.env`:
+   `npm run admin -- nfc:add --business <slug> --uid <UID> --label "קופה"`. This registers the tag and prints, in
+   your terminal only, key 0, key 1, key 2, the URL and the SDM settings. `nfc:keys --uid <UID>` prints them again
+   without registering.
+3. In TagWriter, write an NDEF URL record `https://www.getperko.com/t?p=00000000000000000000000000000000&c=0000000000000000`
+   with SDM/SUN enabled:
+   - encrypted PICC data (UID + read counter) with key 1, mirrored at the `p` placeholder.
+   - SUN MAC with key 2 at the `c` placeholder, with the MAC input starting at the MAC itself (no extra input).
+   - read counter enabled.
+   - NDEF file: read free, write and change with key 0.
+   - With the `https://` URI prefix the offsets are PICC 0x1C, MAC 0x3F, MAC input 0x3F.
+   Then change keys 2, 1 and 0 (in that order: key 0 last) from `00..00` to the printed values.
+   TagWriter's menus differ between versions: these are the settings to look for, not exact menu names.
+4. Tap the tag with a phone, copy the URL it opens, and check it:
+   `npm run admin -- nfc:check --url "<URL>"`. It must say "Genuine tap from <UID>". If it does not, the keys or
+   SDM settings on the tag differ from the printed ones: fix them before the tag goes to the business.
+5. Tap again and check that the counter went up. Tapping with the app installed must add a stamp.
+
+`npm run admin -- nfc:disable --uid <UID>` / `nfc:enable` do what the dashboard's buttons do.
+
+**Testing on Android.** Expo Go cannot receive the tag's link, so install a build:
+`npx eas-cli@latest build -p android --profile preview`, or `npx expo run:android`. Then tap a provisioned tag: Android
+asks which app opens `getperko.com/t`, choose Perko. Check each of these:
+- A stamp is added without a PIN.
+- Opening the same URL again answers "הנגיעה הזו כבר נוצלה".
+- With "גם קוד" on, the PIN pad appears after the tap.
+- A disabled tag answers "inactive".
+- In a browser, `https://www.getperko.com/t?...` shows "פתחו ב-Perko", and the button opens the app.
+
+### Upgrading a live project to NFC
+
+1. Apply `20261119100000_nfc_tags.sql`. It only adds; QR collection is unchanged.
+2. Set the `NFC_META_KEY` and `NFC_MASTER_KEY` secrets, then deploy `collect`.
+3. Redeploy the dashboard (תגי NFC) and the marketing site (`/t`).
+4. Ship the app build (route `t`, intent filter).
 
 ## Pilot admin script
 

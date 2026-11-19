@@ -137,6 +137,14 @@ export function formatIsraeliPhone(e164: string): string {
   return `${local.slice(0, 3)}-${local.slice(3, 6)}-${local.slice(6)}`;
 }
 
+/**
+ * Does this collection need the staff PIN? Always for the counter QR (it can be photographed). For an NFC tap
+ * only when the business switched on "require PIN for NFC too": the tag stays with the staff.
+ */
+export function pinRequired(source: 'qr' | 'nfc', nfcRequirePin: boolean): boolean {
+  return source === 'qr' || nfcRequirePin;
+}
+
 /** Wrong staff PINs allowed per customer, business and day (consecutive). Same as pin_max_failures() in SQL. */
 export const PIN_MAX_FAILURES = 3;
 

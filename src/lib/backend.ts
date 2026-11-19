@@ -26,8 +26,11 @@ export interface Backend {
   addToWallet(programId: string): Promise<void>;
   /** Can the customer collect now? No PIN, nothing written: answers cooldown and full cards before the PIN pad. */
   checkCollect(payload: string, source: CollectSource): Promise<CollectResponse>;
-  /** The staff member typed their PIN on the customer's phone: the stamp is written if it is right. */
-  collect(payload: string, source: CollectSource, pin: string): Promise<CollectResponse>;
+  /**
+   * Writes the stamp. QR: with the staff PIN typed on the customer's phone. NFC: with pin null after a tap
+   * (answers 'pin_required' when the business wants a PIN for NFC too), then again with the PIN.
+   */
+  collect(payload: string, source: CollectSource, pin: string | null): Promise<CollectResponse>;
   /** The staff member confirms the reward with their PIN. */
   confirmRedeem(cardId: string, pin: string): Promise<RedeemResponse>;
   /** Right after the scan that filled the card: that scan's confirmation stands for the PIN (2 minutes, once). */

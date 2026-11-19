@@ -348,4 +348,98 @@ do $$ begin
   raise notice 'ok   owners set phone, kashrut and hours on their own business only';
 end $$;
 reset role;
+-- NFC tags (migration 20261119100000) -------------------------------------------------------------------
+set role service_role;
+do $$
+declare
+  u uuid := '22222222-2222-4222-8222-222222222222';
+  b uuid := 'a0000000-0000-4000-8000-000000000004';
+  b2 uuid := 'a0000000-0000-4000-8000-000000000005';
+  tag uuid; c uuid; v int; r text;
+begin
+  insert into nfc_tags (business_id, uid, label) values (b, '04AABBCCDDEE80', 'קופה') returning id into tag;
+  insert into nfc_tags (business_id, uid) values (b2, '04AABBCCDDEE81');
+  begin
+    insert into nfc_tags (business_id, uid) values (b, '04aabbccddee80');
+    raise exception 'FAIL lower-case uid';
+  exception when check_violation then null;
+  end;
+  insert into cards (user_id, program_id) values (u, (select id from programs where business_id = b)) returning id, version into c, v;
+
+  r := apply_nfc_collect(c, v, 1, 'active', 1, b, tag, 5);
+  assert r = 'ok', format('first tap %s', r);
+  assert (select last_counter from nfc_tags where id = tag) = 5;
+  assert (select source from stamp_events where card_id = c) = 'nfc' and (select nfc_tag_id from stamp_events where card_id = c) = tag;
+  assert (select staff_pin_id from stamp_events where card_id = c) is null, 'no PIN by default';
+
+  -- Replay: the same counter, or a lower one, changes nothing (card and counter stay).
+  v := (select version from cards where id = c);
+  assert apply_nfc_collect(c, v, 2, 'active', 1, b, tag, 5) = 'stale', 'same counter';
+  assert apply_nfc_collect(c, v, 2, 'active', 1, b, tag, 4) = 'stale', 'older counter';
+  assert (select current from cards where id = c) = 1 and (select count(*) from stamp_events where card_id = c) = 1, 'nothing written on replay';
+
+  -- A card conflict rolls the counter back too.
+  assert apply_nfc_collect(c, v - 1, 2, 'active', 1, b, tag, 9) = 'conflict';
+  assert (select last_counter from nfc_tags where id = tag) = 5, 'counter not consumed by a failed write';
+
+  -- Another business's tag cannot stamp here.
+  assert apply_nfc_collect(c, v, 2, 'active', 1, b, (select id from nfc_tags where uid = '04AABBCCDDEE81'), 50) = 'stale';
+
+  -- A disabled tag stamps nothing.
+  update nfc_tags set active = false where id = tag;
+  assert apply_nfc_collect(c, v, 2, 'active', 1, b, tag, 10) = 'stale', 'disabled tag';
+  update nfc_tags set active = true where id = tag;
+  assert apply_nfc_collect(c, v, 2, 'active', 1, b, tag, 10) = 'ok';
+  raise notice 'ok   NFC: counter must grow, moves with the stamp, a disabled or foreign tag stamps nothing';
+
+  perform register_nfc_rejection(tag, u, 4, 'stale');
+  perform register_nfc_rejection(tag, u, 3, 'stale');
+  assert not exists (select 1 from business_alerts where kind = 'nfc_stale');
+  perform register_nfc_rejection(tag, u, 2, 'stale');
+  perform register_nfc_rejection(tag, u, 1, 'stale');
+  assert (select count(*) from business_alerts where kind = 'nfc_stale' and nfc_tag_id = tag) = 1, 'one stale alert a day';
+  raise notice 'ok   repeated stale taps raise one alert';
+
+  assert business_open_at(null, now()) is null;
+  -- 2026-11-20 is a Friday; 10:00 UTC is 12:00 in Israel.
+  assert business_open_at('[null,null,null,null,null,{"open":"07:00","close":"14:00"},null]', '2026-11-20 10:00:00+00');
+  assert not business_open_at('[null,null,null,null,null,{"open":"07:00","close":"14:00"},null]', '2026-11-20 13:00:00+00');
+  assert not business_open_at('[null,null,null,null,null,{"open":"07:00","close":"14:00"},null]', '2026-11-21 10:00:00+00'), 'Saturday closed';
+  -- Thursday 20:00-02:00 is still open at 01:00 on Friday.
+  assert business_open_at('[null,null,null,null,{"open":"20:00","close":"02:00"},null,null]', '2026-11-19 23:00:00+00'), 'past midnight';
+  raise notice 'ok   business hours for the off-hours alert, overnight included';
+
+  insert into business_members (user_id, business_id, role) values ('33333333-3333-4333-8333-333333333333', b, 'owner');
+end $$;
+reset role;
+
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
+select pg_temp.expect_error($q$select * from nfc_rejections$q$, 'customer cannot read NFC rejections');
+select pg_temp.expect_error($q$select apply_nfc_collect(gen_random_uuid(), 0, 1, 'active', 1, gen_random_uuid(), gen_random_uuid(), 1)$q$, 'customer cannot stamp by NFC');
+select pg_temp.expect_error($q$select * from business_nfc_tags('a0000000-0000-4000-8000-000000000004')$q$, 'customer cannot list tags');
+do $$ begin
+  assert (select count(*) from nfc_tags) = 0, 'customers see no tags';
+  update businesses set nfc_require_pin = true;
+  assert not exists (select 1 from businesses where nfc_require_pin), 'customer cannot switch PIN for NFC';
+  raise notice 'ok   customers never see tags';
+end $$;
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select pg_temp.expect_error($q$select last_counter from nfc_tags$q$, 'owner cannot read the counter column');
+select pg_temp.expect_error($q$update nfc_tags set last_counter = 0$q$, 'owner cannot move the counter');
+select pg_temp.expect_error($q$insert into nfc_tags (business_id, uid) values ('a0000000-0000-4000-8000-000000000004', '04AABBCCDDEE99')$q$, 'owner cannot register tags');
+do $$ begin
+  assert (select count(*) from nfc_tags) = 1 and (select uid from nfc_tags) = '04AABBCCDDEE80', 'owner sees own tags only';
+  update nfc_tags set active = false, label = 'דלפק';
+  update nfc_tags set active = false where uid = '04AABBCCDDEE81';
+  assert (select count(*) from business_nfc_tags('a0000000-0000-4000-8000-000000000004') where not active and label = 'דלפק' and taps_7d = 2 and rejected_7d = 4) = 1, 'owner disables and renames';
+  update businesses set nfc_require_pin = true where id = 'a0000000-0000-4000-8000-000000000004';
+  assert (select nfc_require_pin from businesses where id = 'a0000000-0000-4000-8000-000000000004'), 'owner switches PIN for NFC';
+  assert (select tag_label from business_alert_feed('a0000000-0000-4000-8000-000000000004') where kind = 'nfc_stale') = 'דלפק';
+  raise notice 'ok   owners list, rename and disable their own tags and switch PIN for NFC';
+end $$;
+reset role;
+do $$ begin
+  assert (select active from nfc_tags where uid = '04AABBCCDDEE81'), 'another business''s tag untouched';
+end $$;
 \echo ALL DB CHECKS PASSED

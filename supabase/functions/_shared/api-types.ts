@@ -2,13 +2,16 @@
 
 import type { ProgramType } from './loyalty.ts';
 
-/** Where a collection came from. 'nfc' is reserved: v1 only sends 'qr'. */
+/** Where a collection came from: the counter QR code, or a tap on the business's NTAG 424 DNA tag. */
 export type CollectSource = 'qr' | 'nfc';
 
 /**
- * Collecting takes two calls. 'check' (no PIN) runs every test that does not need the staff member: the code,
- * the lockout, the rate limit and the cooldown, so the customer learns "come back later" before anyone types a
- * PIN. 'collect' repeats them with the 4-digit staff PIN and writes the stamp.
+ * QR: two calls. 'check' (no PIN) runs every test that does not need the staff member: the code, the lockout,
+ * the rate limit and the cooldown, so the customer learns "come back later" before anyone types a PIN.
+ * 'collect' repeats them with the 4-digit staff PIN and writes the stamp.
+ * NFC: payload is "p=<32 hex>&c=<16 hex>" from the tap. 'collect' without a PIN writes the stamp, unless the
+ * business requires a PIN for NFC too: then it answers 'pin_required' (nothing written, the tap not used) and
+ * the app sends the same tap again with the PIN.
  */
 export type CollectRequest = { payload: string; source: CollectSource; action: 'check' | 'collect'; pin?: string };
 
@@ -37,7 +40,8 @@ export type CollectResponse =
   | { status: 'locked'; until: string; businessName: string } // too many wrong PINs today at this business
   | { status: 'invalid' } // not a Perko code, bad signature, unknown code
   | { status: 'inactive' } // revoked code, or the business or program is paused
-  | { status: 'rate_limited' };
+  | { status: 'rate_limited' }
+  | { status: 'nfc_replayed' }; // a tap that was already used (a saved link): tap the tag again
 
 /**
  * A reward is used when a staff member types their PIN on the customer's phone ('confirm'), or right after the

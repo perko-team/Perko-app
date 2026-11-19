@@ -10,8 +10,13 @@
 //   npm run admin -- qr:revoke --id <qr uuid>
 //   npm run admin -- qr:render --id <uuid> --name "<business name>"   (offline: no database, secret only)
 //   npm run admin -- qr:from-payload --payload "perko://c/v1...." --name "<business name>"   (no secret: renders a signed code)
+//   npm run admin -- nfc:keys --uid 04AABBCCDDEE80               (offline: the keys and SDM settings to write with TagWriter)
+//   npm run admin -- nfc:add --business <slug> --uid <uid> [--label "קופה"]   (registers the tag, prints its keys)
+//   npm run admin -- nfc:check --url "<the URL a tap opened>"   (offline: is the tap genuine? prints UID and counter)
+//   npm run admin -- nfc:disable --uid <uid>   /   nfc:enable --uid <uid>
 //
-// Env (.env, never committed): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, QR_SECRET_V1 (QR_KEY_VERSION, default 1).
+// Env (.env, never committed): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, QR_SECRET_V1 (QR_KEY_VERSION, default 1);
+// for nfc:* also NFC_META_KEY and NFC_MASTER_KEY (the same values as the Edge Function secrets, 32 hex each).
 // pins:set needs no PIN_SECRET: it asks the business-admin Edge Function, so the secret stays in Supabase.
 // Output: scripts/out/<slug>/<qr id>.png and .pdf (A6 counter card).
 import { createClient } from '@supabase/supabase-js';
@@ -19,13 +24,14 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import QRCode from 'qrcode';
 import { cardFooter, counterCardPdf, QR_PNG_OPTIONS } from '../dashboard/lib/counterCard.ts';
+import { appMasterKey, fileReadKey, fromHex, keyFromHex, NFC_URL_TEMPLATE, parseNfcPayload, toHex, verifySun } from '../supabase/functions/_shared/sun.ts';
 import { parseQrPayload, signQrPayload } from '../supabase/functions/_shared/token.ts';
 
 const { positionals, values: args } = parseArgs({
   allowPositionals: true,
   options: {
     file: { type: 'string' }, business: { type: 'string' }, label: { type: 'string' }, id: { type: 'string' },
-    name: { type: 'string' }, payload: { type: 'string' }, email: { type: 'string' },
+    name: { type: 'string' }, payload: { type: 'string' }, email: { type: 'string' }, uid: { type: 'string' }, url: { type: 'string' },
   },
 });
 const command = positionals[0];
@@ -147,7 +153,71 @@ async function businessAdmin(body: Record<string, unknown>) {
   return out;
 }
 
+function nfcKeys() {
+  const meta = keyFromHex(process.env.NFC_META_KEY);
+  const master = keyFromHex(process.env.NFC_MASTER_KEY);
+  if (!meta || !master) fail('Set NFC_META_KEY and NFC_MASTER_KEY (32 hex each, the same values as the Edge Function secrets).');
+  return { meta: meta!, master: master! };
+}
+function tagUid(): string {
+  const uid = (args.uid ?? '').replace(/[\s:]/g, '').toUpperCase();
+  if (!/^[0-9A-F]{14}$/.test(uid)) fail('--uid is the 7-byte tag UID in hex, e.g. 04AABBCCDDEE80 (TagWriter shows it when you read the tag).');
+  return uid;
+}
+/** What to write to a factory-new tag (all keys 00..00) with NXP TagWriter. Printed in this terminal only. */
+async function printTagSetup(uid: string) {
+  const { meta, master } = nfcKeys();
+  const u = fromHex(uid);
+  console.log(`Tag ${uid}. Write these with NXP TagWriter (see README "Provisioning a tag"). Do not save or send them.
+  Key 0 (application master): ${toHex(await appMasterKey(master, u))}
+  Key 1 (SDM meta read):      ${toHex(meta)}
+  Key 2 (SDM file read):      ${toHex(await fileReadKey(master, u))}
+  Keys 3 and 4:               leave as they are
+  NDEF URL:                   ${NFC_URL_TEMPLATE}
+  SDM: encrypted PICC data (UID + read counter) mirrored with key 1 at the "p" placeholder;
+       SUN MAC with key 2 at the "c" placeholder, MAC input offset = MAC offset (no extra input);
+       read counter on, no counter limit; NDEF file: read free, write key 0, change key 0.
+  With the https:// URI prefix the offsets are: PICC data 0x1C (28), MAC 0x3F (63), MAC input 0x3F.
+Then tap the tag and check the URL it opens with: npm run admin -- nfc:check --url "<that URL>"`);
+}
+
 switch (command) {
+  case 'nfc:keys':
+    await printTagSetup(tagUid());
+    break;
+  case 'nfc:add': {
+    if (!args.business) fail('--business <slug> is required');
+    const uid = tagUid();
+    nfcKeys();
+    const b = await businessBySlug(args.business!);
+    const { error } = await db().from('nfc_tags').insert({ business_id: b.id, uid, label: args.label ?? null });
+    if (error) fail(error.code === '23505' ? `Tag ${uid} is already registered (nfc:enable / nfc:disable to change it).` : error.message);
+    console.log(`Registered ${uid} for ${b.slug}${args.label ? ` (${args.label})` : ''}. It stamps as soon as it is written.`);
+    await printTagSetup(uid);
+    break;
+  }
+  case 'nfc:check': {
+    if (!args.url) fail('--url "<the URL a tap opened>" is required');
+    const tap = parseNfcPayload(args.url!);
+    if (!tap) fail('Not a Perko tap URL (https://www.getperko.com/t?p=<32 hex>&c=<16 hex>).');
+    const ok = await verifySun(nfcKeys(), tap!.p, tap!.c);
+    if (!ok) fail('NOT genuine: the MAC does not match. Check keys 1 and 2 and the SDM settings on the tag.');
+    const { data } = process.env.SUPABASE_URL ? await db().from('nfc_tags').select('last_counter, active, businesses(slug)').eq('uid', ok!.uid).maybeSingle() : { data: null };
+    console.log(`Genuine tap from ${ok!.uid}, read counter ${ok!.counter}.` + (data
+      ? ` Registered to ${(data.businesses as unknown as { slug: string }).slug}, ${data.active ? 'active' : 'disabled'}, last accepted counter ${data.last_counter}.`
+      : ' Not registered yet (nfc:add).'));
+    break;
+  }
+  case 'nfc:disable':
+  case 'nfc:enable': {
+    const uid = tagUid();
+    const { data, error } = await db().from('nfc_tags').update({ active: command === 'nfc:enable' }).eq('uid', uid).select('id');
+    if (error) fail(error.message);
+    if (!data?.length) fail(`No tag ${uid}.`);
+    console.log(`${uid} ${command === 'nfc:enable' ? 'enabled' : 'disabled: its taps now return "inactive"'}.`);
+    break;
+  }
+
   case 'list': {
     const sb = db();
     const { data: bs } = await sb.from('businesses').select('slug, name, active, is_sample, programs(name, type, goal, reward, active)').order('slug');
@@ -215,5 +285,5 @@ switch (command) {
     await render('scripts/out/offline', args.id!, args.name!, args.label);
     break;
   default:
-    console.log(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(0, 17).join('\n'));
+    console.log(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(0, 24).join('\n'));
 }
